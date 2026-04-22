@@ -79,8 +79,16 @@ function installLinux() {
         {
             name: 'apt-get',
             test: () => which('apt-get'),
-            install: () => privileged('apt-get', ['update']) &&
-                privileged('apt-get', ['install', '-y', '--no-install-recommends', 'mosquitto', 'mosquitto-clients'])
+            install: () => {
+                // Don't treat `apt-get update` failure as fatal: a broken
+                // third-party PPA is a common real-world cause of a
+                // non-zero exit, but the mosquitto package lives in the
+                // main repo which may still have refreshed fine.
+                if (!privileged('apt-get', ['update'])) {
+                    warn('apt-get update returned non-zero; attempting install anyway.');
+                }
+                return privileged('apt-get', ['install', '-y', '--no-install-recommends', 'mosquitto', 'mosquitto-clients']);
+            }
         },
         {
             name: 'dnf',
