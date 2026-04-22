@@ -11,8 +11,15 @@
   "license": "Apache-2.0",
   "main": "none",
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "echo \"No tests yet\" && exit 0",
+    "postinstall": "node scripts/install-mosquitto.js",
+    "install-mosquitto": "node scripts/install-mosquitto.js"
   },
+  "files": [
+    "nodes/",
+    "scripts/",
+    "examples/"
+  ],
   "node-red": {
     "version": ">=3.0.0",
     "nodes": {

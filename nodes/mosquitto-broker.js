@@ -154,7 +154,10 @@ module.exports = function (RED) {
 
                 child.on('error', (err) => {
                     setStatus('red', 'ring', 'spawn error');
-                    node.error(`Failed to start mosquitto (${binaryPath}): ${err.message}`);
+                    const hint = err.code === 'ENOENT'
+                        ? ' - binary not found. Run "npm run install-mosquitto" in the module directory, or install mosquitto manually.'
+                        : '';
+                    node.error(`Failed to start mosquitto (${binaryPath}): ${err.message}${hint}`);
                     child = null;
                 });
 

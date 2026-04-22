@@ -84,12 +84,18 @@
        MQTT broker as a child process of Node-RED.</p>
 
     <h3>Prerequisites</h3>
-    <p>The <code>mosquitto</code> binary must be installed and available on
-       the system <code>PATH</code> (or specify a full path in
-       <b>Binary</b>). On Debian/Ubuntu: <code>apt install mosquitto</code>.
-       If you want password-file hashing, also install
-       <code>mosquitto_passwd</code> (usually part of
-       <code>mosquitto-clients</code>).</p>
+    <p>The module ships with a post-install script that tries to install
+       <code>mosquitto</code> (and <code>mosquitto-clients</code>)
+       automatically via the system package manager (apt, dnf, yum,
+       zypper, pacman, apk, or Homebrew on macOS). The script needs root
+       or passwordless <code>sudo</code>; otherwise it logs instructions
+       and the node will raise a clear error at deploy time.</p>
+    <p>You can rerun it any time from the module directory:
+       <code>npm run install-mosquitto</code>. To suppress it during
+       <code>npm install</code>, set <code>SKIP_MOSQUITTO_INSTALL=1</code>.
+       On Windows, install Mosquitto manually from
+       <a href="https://mosquitto.org/download/">mosquitto.org</a> and
+       point <b>Binary</b> at <code>mosquitto.exe</code>.</p>
 
     <h3>Inputs</h3>
     <dl class="message-properties">
