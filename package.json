@@ -13,13 +13,17 @@
   "scripts": {
     "test": "node test/integration.test.js",
     "postinstall": "node scripts/install-mosquitto.js",
-    "install-mosquitto": "node scripts/install-mosquitto.js"
+    "install-mosquitto": "node scripts/install-mosquitto.js",
+    "demo:record": "asciinema rec --overwrite --cols 96 --rows 28 --idle-time-limit 2 -c 'bash demo/demo.sh' demo/demo.cast",
+    "demo:render": "agg --cols 96 --rows 28 --font-size 16 --speed 1.2 --theme monokai demo/demo.cast docs/demo.gif",
+    "demo": "npm run demo:record && npm run demo:render"
   },
   "files": [
     "nodes/",
     "scripts/",
     "examples/",
-    "test/"
+    "test/",
+    "docs/"
   ],
   "node-red": {
     "version": ">=3.0.0",
