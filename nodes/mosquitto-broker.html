@@ -84,18 +84,24 @@
        MQTT broker as a child process of Node-RED.</p>
 
     <h3>Prerequisites</h3>
-    <p>The module ships with a post-install script that tries to install
-       <code>mosquitto</code> (and <code>mosquitto-clients</code>)
-       automatically via the system package manager (apt, dnf, yum,
-       zypper, pacman, apk, or Homebrew on macOS). The script needs root
-       or passwordless <code>sudo</code>; otherwise it logs instructions
-       and the node will raise a clear error at deploy time.</p>
+    <p>The module ships with a post-install script that installs
+       <code>mosquitto</code> automatically:</p>
+    <ul>
+        <li><b>Linux</b>: via apt, dnf, yum, zypper, pacman or apk. Needs
+            root or passwordless <code>sudo</code>.</li>
+        <li><b>macOS</b>: via Homebrew.</li>
+        <li><b>Windows</b>: via <code>winget</code>
+            (<code>EclipseFoundation.Mosquitto</code>), then Chocolatey,
+            then a direct silent download of the official installer from
+            <code>mosquitto.org</code>. The Windows installer requires
+            administrator rights - run <code>npm install</code> in an
+            elevated shell or accept the UAC prompt.</li>
+    </ul>
     <p>You can rerun it any time from the module directory:
        <code>npm run install-mosquitto</code>. To suppress it during
-       <code>npm install</code>, set <code>SKIP_MOSQUITTO_INSTALL=1</code>.
-       On Windows, install Mosquitto manually from
-       <a href="https://mosquitto.org/download/">mosquitto.org</a> and
-       point <b>Binary</b> at <code>mosquitto.exe</code>.</p>
+       <code>npm install</code>, set
+       <code>SKIP_MOSQUITTO_INSTALL=1</code>. To pin the Windows fallback
+       installer version, set <code>MOSQUITTO_WIN_VERSION=2.0.20</code>.</p>
 
     <h3>Inputs</h3>
     <dl class="message-properties">

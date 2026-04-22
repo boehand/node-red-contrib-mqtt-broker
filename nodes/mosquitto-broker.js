@@ -11,7 +11,25 @@ module.exports = function (RED) {
         if (userPath && userPath.trim() !== '') {
             return userPath.trim();
         }
-        return process.platform === 'win32' ? 'mosquitto.exe' : 'mosquitto';
+        if (process.platform !== 'win32') {
+            return 'mosquitto';
+        }
+        // On Windows the installer does not always add mosquitto to PATH.
+        // Check the standard install locations before falling back to the
+        // bare name (which relies on PATH).
+        const candidates = [];
+        if (process.env['ProgramFiles']) {
+            candidates.push(path.join(process.env['ProgramFiles'], 'mosquitto', 'mosquitto.exe'));
+        }
+        if (process.env['ProgramFiles(x86)']) {
+            candidates.push(path.join(process.env['ProgramFiles(x86)'], 'mosquitto', 'mosquitto.exe'));
+        }
+        for (const c of candidates) {
+            try {
+                if (fs.existsSync(c)) return c;
+            } catch (e) { /* ignore */ }
+        }
+        return 'mosquitto.exe';
     }
 
     function portInUse(port, host) {
