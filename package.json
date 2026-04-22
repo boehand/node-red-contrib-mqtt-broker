@@ -1,0 +1,30 @@
+{
+  "name": "node-red-contrib-mosquitto-broker",
+  "version": "0.1.0",
+  "description": "Node-RED node that runs a Mosquitto MQTT broker as a child process, managed by the Node-RED runtime.",
+  "keywords": [
+    "node-red",
+    "mqtt",
+    "mosquitto",
+    "broker"
+  ],
+  "license": "Apache-2.0",
+  "main": "none",
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "node-red": {
+    "version": ">=3.0.0",
+    "nodes": {
+      "mosquitto-broker": "nodes/mosquitto-broker.js"
+    }
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boehand/test.git"
+  }
+}

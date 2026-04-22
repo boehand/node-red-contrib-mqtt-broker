@@ -1,0 +1,48 @@
+[
+    {
+        "id": "f1",
+        "type": "tab",
+        "label": "Mosquitto Broker",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "b1",
+        "type": "mosquitto-broker",
+        "z": "f1",
+        "name": "local broker",
+        "port": 1883,
+        "bind": "",
+        "allowAnonymous": true,
+        "persistence": false,
+        "binaryPath": "",
+        "configPath": "",
+        "logToConsole": true,
+        "x": 360,
+        "y": 160,
+        "wires": [["d1"]]
+    },
+    {
+        "id": "i1",
+        "type": "inject",
+        "z": "f1",
+        "name": "status",
+        "props": [{"p": "payload"}],
+        "payload": "status",
+        "payloadType": "str",
+        "x": 150,
+        "y": 160,
+        "wires": [["b1"]]
+    },
+    {
+        "id": "d1",
+        "type": "debug",
+        "z": "f1",
+        "name": "broker log",
+        "active": true,
+        "complete": "payload",
+        "x": 570,
+        "y": 160,
+        "wires": []
+    }
+]

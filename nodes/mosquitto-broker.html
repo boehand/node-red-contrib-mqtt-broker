@@ -1,0 +1,119 @@
+<script type="text/javascript">
+    RED.nodes.registerType('mosquitto-broker', {
+        category: 'network',
+        color: '#a6d3e0',
+        defaults: {
+            name:          { value: '' },
+            port:          { value: 1883, required: true, validate: RED.validators.number() },
+            bind:          { value: '' },
+            allowAnonymous:{ value: true },
+            persistence:   { value: false },
+            binaryPath:    { value: '' },
+            configPath:    { value: '' },
+            logToConsole:  { value: false }
+        },
+        credentials: {
+            username: { type: 'text' },
+            password: { type: 'password' }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: 'bridge.svg',
+        label: function () {
+            return this.name || ('mosquitto :' + (this.port || 1883));
+        },
+        paletteLabel: 'mosquitto broker',
+        oneditprepare: function () {
+            const customConfig = $('#node-input-configPath');
+            const toggleCustom = () => {
+                const hasCustom = !!customConfig.val();
+                $('.mosquitto-generated-only').toggle(!hasCustom);
+            };
+            customConfig.on('input change', toggleCustom);
+            toggleCustom();
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="mosquitto-broker">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-port"><i class="fa fa-plug"></i> Port</label>
+        <input type="number" id="node-input-port" placeholder="1883" style="width:120px">
+    </div>
+    <div class="form-row">
+        <label for="node-input-bind"><i class="fa fa-globe"></i> Bind</label>
+        <input type="text" id="node-input-bind" placeholder="0.0.0.0 (leave blank for any)">
+    </div>
+    <div class="form-row mosquitto-generated-only">
+        <label for="node-input-allowAnonymous" style="width:auto"><i class="fa fa-user-o"></i> Allow anonymous</label>
+        <input type="checkbox" id="node-input-allowAnonymous" style="width:auto; margin-left:6px">
+    </div>
+    <div class="form-row mosquitto-generated-only">
+        <label for="node-input-persistence" style="width:auto"><i class="fa fa-database"></i> Persistence</label>
+        <input type="checkbox" id="node-input-persistence" style="width:auto; margin-left:6px">
+    </div>
+    <div class="form-row mosquitto-generated-only">
+        <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
+        <input type="text" id="node-input-username" placeholder="optional">
+    </div>
+    <div class="form-row mosquitto-generated-only">
+        <label for="node-input-password"><i class="fa fa-lock"></i> Password</label>
+        <input type="password" id="node-input-password" placeholder="optional">
+    </div>
+    <hr>
+    <div class="form-row">
+        <label for="node-input-binaryPath"><i class="fa fa-terminal"></i> Binary</label>
+        <input type="text" id="node-input-binaryPath" placeholder="mosquitto (found on PATH)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-configPath"><i class="fa fa-file-o"></i> Config file</label>
+        <input type="text" id="node-input-configPath" placeholder="optional; overrides settings above">
+    </div>
+    <div class="form-row">
+        <label for="node-input-logToConsole" style="width:auto"><i class="fa fa-file-text-o"></i> Log to Node-RED console</label>
+        <input type="checkbox" id="node-input-logToConsole" style="width:auto; margin-left:6px">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="mosquitto-broker">
+    <p>Starts and supervises a <a href="https://mosquitto.org/">Mosquitto</a>
+       MQTT broker as a child process of Node-RED.</p>
+
+    <h3>Prerequisites</h3>
+    <p>The <code>mosquitto</code> binary must be installed and available on
+       the system <code>PATH</code> (or specify a full path in
+       <b>Binary</b>). On Debian/Ubuntu: <code>apt install mosquitto</code>.
+       If you want password-file hashing, also install
+       <code>mosquitto_passwd</code> (usually part of
+       <code>mosquitto-clients</code>).</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">string | object</span></dt>
+        <dd>Control command: <code>start</code>, <code>stop</code>,
+            <code>restart</code> or <code>status</code>. Object form:
+            <code>{ command: 'restart' }</code>.</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd><code>mosquitto/stdout</code>, <code>mosquitto/stderr</code> or
+            <code>mosquitto/status</code>.</dd>
+        <dt>payload <span class="property-type">string | object</span></dt>
+        <dd>Log lines from the broker, or a status object.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>If a custom config file is supplied, all other settings on the node
+       are ignored - the file is passed verbatim to
+       <code>mosquitto -c</code>. Otherwise, a temporary config is generated
+       from the fields above. The broker starts on deploy and is stopped
+       cleanly when the node is redeployed or Node-RED shuts down.</p>
+    <p>If the broker exits unexpectedly, the node will restart it after
+       five seconds.</p>
+</script>
