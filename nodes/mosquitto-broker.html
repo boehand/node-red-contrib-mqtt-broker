@@ -103,11 +103,19 @@
        <code>SKIP_MOSQUITTO_INSTALL=1</code>. To pin the Windows fallback
        installer version, set <code>MOSQUITTO_WIN_VERSION=2.0.20</code>.</p>
 
+    <h3>Self-heal on first deploy</h3>
+    <p>If the binary is missing when the node first starts, the runtime
+       runs the installer once and only then spawns the broker. On
+       Windows the installer can surface a UAC prompt that
+       <code>npm install</code> couldn't show during palette install -
+       accept it and the node moves to <code>running</code>.</p>
+
     <h3>Inputs</h3>
     <dl class="message-properties">
         <dt>payload <span class="property-type">string | object</span></dt>
         <dd>Control command: <code>start</code>, <code>stop</code>,
-            <code>restart</code> or <code>status</code>. Object form:
+            <code>restart</code>, <code>status</code>, or
+            <code>install</code> (re-run the auto-install). Object form:
             <code>{ command: 'restart' }</code>.</dd>
     </dl>
 

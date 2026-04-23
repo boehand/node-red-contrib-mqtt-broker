@@ -6,30 +6,15 @@ module.exports = function (RED) {
     const os = require('os');
     const path = require('path');
     const net = require('net');
+    const installLib = require('../lib/install-lib.js');
 
     function resolveBinary(userPath) {
         if (userPath && userPath.trim() !== '') {
             return userPath.trim();
         }
-        if (process.platform !== 'win32') {
-            return 'mosquitto';
-        }
-        // On Windows the installer does not always add mosquitto to PATH.
-        // Check the standard install locations before falling back to the
-        // bare name (which relies on PATH).
-        const candidates = [];
-        if (process.env['ProgramFiles']) {
-            candidates.push(path.join(process.env['ProgramFiles'], 'mosquitto', 'mosquitto.exe'));
-        }
-        if (process.env['ProgramFiles(x86)']) {
-            candidates.push(path.join(process.env['ProgramFiles(x86)'], 'mosquitto', 'mosquitto.exe'));
-        }
-        for (const c of candidates) {
-            try {
-                if (fs.existsSync(c)) return c;
-            } catch (e) { /* ignore */ }
-        }
-        return 'mosquitto.exe';
+        const found = installLib.findBinary();
+        if (found) return found;
+        return process.platform === 'win32' ? 'mosquitto.exe' : 'mosquitto';
     }
 
     function portInUse(port, host) {
@@ -54,7 +39,7 @@ module.exports = function (RED) {
         const allowAnonymous = config.allowAnonymous !== false;
         const persistence = !!config.persistence;
         const customConfigPath = (config.configPath || '').trim();
-        const binaryPath = resolveBinary(config.binaryPath);
+        let binaryPath = resolveBinary(config.binaryPath);
         const logToConsole = !!config.logToConsole;
 
         const username = (node.credentials && node.credentials.username) || '';
@@ -137,10 +122,39 @@ module.exports = function (RED) {
             node.status({ fill, shape, text });
         }
 
+        async function ensureBinaryAvailable() {
+            // Skip the auto-install if the user pinned a custom binary -
+            // they know what they want.
+            if (config.binaryPath && config.binaryPath.trim() !== '') return true;
+            if (installLib.findBinary()) return true;
+
+            setStatus('blue', 'ring', 'installing mosquitto');
+            node.warn('mosquitto binary not found; attempting auto-install. ' +
+                'On Windows this may surface a UAC prompt.');
+
+            const logger = {
+                log:  (m) => node.log(m),
+                warn: (m) => node.warn(m)
+            };
+            const res = await installLib.ensureInstalled({ logger });
+            if (res.ok) {
+                node.log(`mosquitto installed at ${res.path}`);
+                // Refresh the resolved binary path now that it exists.
+                binaryPath = resolveBinary(config.binaryPath);
+                return true;
+            }
+            setStatus('red', 'ring', 'install failed');
+            node.error('Auto-install of mosquitto failed. Send {"payload":"install"} ' +
+                'to the node to retry, or install mosquitto manually and redeploy.');
+            return false;
+        }
+
         async function start() {
             if (child) return;
 
             try {
+                if (!(await ensureBinaryAvailable())) return;
+
                 const inUse = await portInUse(port, bind || '0.0.0.0');
                 if (inUse) {
                     setStatus('red', 'ring', `port ${port} in use`);
@@ -271,8 +285,19 @@ module.exports = function (RED) {
                 return;
             }
             if (cmd === 'status') {
-                send({ topic: 'mosquitto/status', payload: { running: !!child, port, bind } });
+                send({ topic: 'mosquitto/status', payload: {
+                    running: !!child, port, bind, binary: binaryPath
+                } });
                 doneCb && doneCb();
+                return;
+            }
+            if (cmd === 'install') {
+                ensureBinaryAvailable().then((ok) => {
+                    send({ topic: 'mosquitto/install', payload: {
+                        ok, binary: ok ? binaryPath : null
+                    } });
+                    doneCb && doneCb();
+                });
                 return;
             }
             doneCb && doneCb();
