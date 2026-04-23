@@ -398,7 +398,7 @@ module.exports = function (RED) {
         start();
     }
 
-    RED.nodes.registerType('mqtt-broker', MosquittoBrokerNode, {
+    RED.nodes.registerType('mqttbroker', MosquittoBrokerNode, {
         credentials: {
             username: { type: 'text' },
             password: { type: 'password' }

@@ -1,5 +1,5 @@
 <script type="text/javascript">
-    RED.nodes.registerType('mqtt-broker', {
+    RED.nodes.registerType('mqttbroker', {
         category: 'network',
         color: '#D8BFD8',
         defaults: {
@@ -35,7 +35,7 @@
     });
 </script>
 
-<script type="text/html" data-template-name="mqtt-broker">
+<script type="text/html" data-template-name="mqttbroker">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -79,7 +79,7 @@
     </div>
 </script>
 
-<script type="text/html" data-help-name="mqtt-broker">
+<script type="text/html" data-help-name="mqttbroker">
     <p>Starts and supervises a <a href="https://mosquitto.org/">Mosquitto</a>
        MQTT broker as a child process of Node-RED.</p>
 
