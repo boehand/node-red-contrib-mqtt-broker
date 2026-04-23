@@ -42,6 +42,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/boehand/test.git"
+    "url": "https://github.com/boehand/node-red-contrib-mqtt-broker.git"
   }
 }
