@@ -6,6 +6,7 @@ module.exports = function (RED) {
     const os = require('os');
     const path = require('path');
     const net = require('net');
+    const mqtt = require('mqtt');
     const installLib = require('../lib/install-lib.js');
 
     function resolveBinary(userPath) {
@@ -53,6 +54,56 @@ module.exports = function (RED) {
         let child = null;
         let stopping = false;
         let restartTimer = null;
+        let mqttClient = null;
+        const topics = new Map(); // topic -> { payload, timestamp, qos, retain }
+
+        function bufferToView(buf) {
+            // Try to expose the payload as a JS-friendly value. UTF-8
+            // decode as a best-effort; keep the raw Buffer too.
+            let string = null;
+            try { string = buf.toString('utf8'); } catch (e) { /* binary */ }
+            return { raw: buf, string };
+        }
+
+        function connectInternalClient() {
+            if (mqttClient) return;
+            const host = bind || '127.0.0.1';
+            const url = `mqtt://${host}:${port}`;
+            const opts = { reconnectPeriod: 2000, connectTimeout: 5000 };
+            if (username && password) {
+                opts.username = username;
+                opts.password = password;
+            }
+            try {
+                mqttClient = mqtt.connect(url, opts);
+            } catch (err) {
+                node.warn(`internal mqtt client failed to connect: ${err.message}`);
+                return;
+            }
+            mqttClient.on('connect', () => {
+                mqttClient.subscribe('#', { qos: 0 }, (err) => {
+                    if (err) node.warn(`internal subscribe failed: ${err.message}`);
+                });
+            });
+            mqttClient.on('message', (topic, payload, packet) => {
+                topics.set(topic, {
+                    payload: Buffer.from(payload),
+                    timestamp: Date.now(),
+                    qos: packet.qos,
+                    retain: !!packet.retain
+                });
+            });
+            mqttClient.on('error', (err) => {
+                node.warn(`internal mqtt client error: ${err.message}`);
+            });
+        }
+
+        function disconnectInternalClient() {
+            if (!mqttClient) return;
+            try { mqttClient.end(true); } catch (e) { /* ignore */ }
+            mqttClient = null;
+            topics.clear();
+        }
 
         function cleanupWorkDir() {
             try {
@@ -223,10 +274,12 @@ module.exports = function (RED) {
                     }
                 });
 
-                // Give the broker a moment to actually bind, then mark running.
+                // Give the broker a moment to actually bind, then mark
+                // running and attach the internal topic-tracking client.
                 setTimeout(() => {
                     if (child) {
                         setStatus('green', 'dot', `running :${port}`);
+                        connectInternalClient();
                     }
                 }, 500);
             } catch (err) {
@@ -237,6 +290,7 @@ module.exports = function (RED) {
 
         function stop(done) {
             stopping = true;
+            disconnectInternalClient();
             if (restartTimer) {
                 clearTimeout(restartTimer);
                 restartTimer = null;
@@ -298,6 +352,40 @@ module.exports = function (RED) {
                     } });
                     doneCb && doneCb();
                 });
+                return;
+            }
+            if (cmd === 'topics') {
+                send({ topic: 'mosquitto/topics', payload: Array.from(topics.keys()).sort() });
+                doneCb && doneCb();
+                return;
+            }
+            if (cmd === 'get') {
+                // Topic name: msg.payload.topic, or msg.topic when payload is just 'get'.
+                const wanted = (msg.payload && typeof msg.payload === 'object' && msg.payload.topic)
+                    || msg.topic
+                    || '';
+                if (!wanted) {
+                    node.warn('get command needs a topic (msg.payload.topic or msg.topic)');
+                    send({ topic: 'mosquitto/get', payload: { topic: null, found: false } });
+                    doneCb && doneCb();
+                    return;
+                }
+                const entry = topics.get(wanted);
+                if (!entry) {
+                    send({ topic: 'mosquitto/get', payload: { topic: wanted, found: false } });
+                } else {
+                    const view = bufferToView(entry.payload);
+                    send({ topic: 'mosquitto/get', payload: {
+                        topic: wanted,
+                        found: true,
+                        value: view.string,
+                        buffer: view.raw,
+                        qos: entry.qos,
+                        retain: entry.retain,
+                        timestamp: entry.timestamp
+                    } });
+                }
+                doneCb && doneCb();
                 return;
             }
             doneCb && doneCb();

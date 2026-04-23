@@ -122,6 +122,45 @@ async function main() {
     assert(node._sent[0].payload.running === true && node._sent[0].payload.port === PORT,
         `status payload reflects running broker on port ${PORT}`);
 
+    /* --- Internal client tracks topics: give it time to catch up --- */
+
+    // Publish a second retained message so we can check "get" too.
+    spawnSync('mosquitto_pub', [
+        '-h', '127.0.0.1', '-p', String(PORT),
+        '-t', 'sensors/temp', '-m', '21.5', '-r'
+    ]);
+    await sleep(800);
+
+    node._sent.length = 0;
+    node.emit('input', { payload: 'topics' }, (m) => node._sent.push(m), () => {});
+    assert(node._sent.length === 1 && node._sent[0].topic === 'mosquitto/topics',
+        'topics command emitted mosquitto/topics message');
+    const seen = node._sent[0].payload;
+    assert(Array.isArray(seen) && seen.includes('test/topic') && seen.includes('sensors/temp'),
+        `topics list includes earlier publishes (got ${JSON.stringify(seen)})`);
+
+    node._sent.length = 0;
+    node.emit('input',
+        { payload: { command: 'get', topic: 'sensors/temp' } },
+        (m) => node._sent.push(m), () => {});
+    assert(node._sent.length === 1 && node._sent[0].topic === 'mosquitto/get',
+        'get command emitted mosquitto/get message');
+    const entry = node._sent[0].payload;
+    // retain=false is correct here: MQTT only flags retain=true on
+    // messages delivered to a fresh subscriber, not on live messages
+    // the internal client receives while already subscribed.
+    assert(entry.found === true && entry.value === '21.5' && entry.topic === 'sensors/temp',
+        `get returns last value for sensors/temp (got ${JSON.stringify(entry)})`);
+    assert(Buffer.isBuffer(entry.buffer) && entry.buffer.toString() === '21.5',
+        'get response includes raw Buffer for binary payloads');
+
+    node._sent.length = 0;
+    node.emit('input',
+        { payload: { command: 'get', topic: 'does/not/exist' } },
+        (m) => node._sent.push(m), () => {});
+    assert(node._sent[0].payload.found === false,
+        'get for unseen topic reports found=false');
+
     /* --- Clean shutdown via 'close' event --- */
 
     await new Promise((resolve) => node.emit('close', resolve));

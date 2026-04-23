@@ -1,7 +1,7 @@
 <script type="text/javascript">
     RED.nodes.registerType('mosquitto-broker', {
         category: 'network',
-        color: '#a6d3e0',
+        color: '#D8BFD8',
         defaults: {
             name:          { value: '' },
             port:          { value: 1883, required: true, validate: RED.validators.number() },
@@ -114,18 +114,39 @@
     <dl class="message-properties">
         <dt>payload <span class="property-type">string | object</span></dt>
         <dd>Control command: <code>start</code>, <code>stop</code>,
-            <code>restart</code>, <code>status</code>, or
-            <code>install</code> (re-run the auto-install). Object form:
+            <code>restart</code>, <code>status</code>, <code>install</code>,
+            <code>topics</code>, or <code>get</code>. Object form:
             <code>{ command: 'restart' }</code>.</dd>
+        <dt class="optional">topic <span class="property-type">string</span></dt>
+        <dd>For <code>get</code>: the topic name to fetch. Also accepted
+            as <code>payload.topic</code>.</dd>
     </dl>
+
+    <h3>Topic inspection</h3>
+    <p>The node maintains an in-memory map of every topic it has seen
+       since the broker started, together with the last payload, QoS,
+       retain flag, and timestamp. This uses an internal MQTT client
+       that subscribes to <code>#</code>. Memory grows with the number
+       of distinct topics.</p>
+    <ul>
+        <li><code>payload: "topics"</code> -> list of all topic names,
+            sorted.</li>
+        <li><code>payload: { command: "get", topic: "foo/bar" }</code>
+            or <code>payload: "get"</code> with
+            <code>msg.topic = "foo/bar"</code> -> last value for that
+            topic (as both decoded string and raw Buffer).</li>
+    </ul>
 
     <h3>Outputs</h3>
     <dl class="message-properties">
         <dt>topic <span class="property-type">string</span></dt>
-        <dd><code>mosquitto/stdout</code>, <code>mosquitto/stderr</code> or
-            <code>mosquitto/status</code>.</dd>
+        <dd><code>mosquitto/stdout</code>, <code>mosquitto/stderr</code>,
+            <code>mosquitto/status</code>, <code>mosquitto/install</code>,
+            <code>mosquitto/topics</code>, or <code>mosquitto/get</code>.</dd>
         <dt>payload <span class="property-type">string | object</span></dt>
-        <dd>Log lines from the broker, or a status object.</dd>
+        <dd>Log lines, status object, topic list, or
+            <code>{ topic, found, value, buffer, qos, retain, timestamp }</code>
+            for <code>get</code>.</dd>
     </dl>
 
     <h3>Details</h3>
