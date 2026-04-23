@@ -31,7 +31,7 @@
   "node-red": {
     "version": ">=3.0.0",
     "nodes": {
-      "mqtt-broker": "nodes/mqtt-broker.js"
+      "mqttbroker": "nodes/mqttbroker.js"
     }
   },
   "engines": {
