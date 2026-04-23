@@ -168,4 +168,12 @@ publishes/subscribes with `mosquitto_pub`/`mosquitto_sub`, exercises
 
 ## License
 
-Apache-2.0
+This project is licensed under the Apache-2.0 License - see the LICENSE file for details.
+
+## Author
+
+Created by boehand using Claude Opus 4.7
+
+---
+
+For issues and feature requests, please file an issue on the GitHub repository.
