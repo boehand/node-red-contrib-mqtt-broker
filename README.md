@@ -5,7 +5,7 @@ Node-RED. A deploy starts the broker; a redeploy or shutdown stops it cleanly.
 The module ships with an auto-installer for the underlying binary — Linux,
 macOS, and Windows 10/11.
 
-![Demo](docs/demo.gif)
+![Demo](docs/video_node-red-contrib-mqtt-broker.webp)
 
 ---
 
