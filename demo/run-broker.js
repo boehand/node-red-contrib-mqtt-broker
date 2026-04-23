@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const nodeFactory = require('../nodes/mosquitto-broker.js');
+const nodeFactory = require('../nodes/mqtt-broker.js');
 
 const PORT = 18840;
 
@@ -30,7 +30,7 @@ const RED = {
 };
 
 nodeFactory(RED);
-const Ctor = RED._ctors['mosquitto-broker'];
+const Ctor = RED._ctors['mqtt-broker'];
 
 const node = {};
 Ctor.call(node, {

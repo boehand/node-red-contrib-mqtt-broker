@@ -13,7 +13,7 @@
 const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 
-const nodeFactory = require('../nodes/mosquitto-broker.js');
+const nodeFactory = require('../nodes/mqtt-broker.js');
 
 let PORT = 18830 + Math.floor(Math.random() * 1000);
 
@@ -58,8 +58,8 @@ const RED = {
 };
 
 nodeFactory(RED);
-const Ctor = RED._ctors['mosquitto-broker'];
-assert(typeof Ctor === 'function', 'node factory registered mosquitto-broker');
+const Ctor = RED._ctors['mqtt-broker'];
+assert(typeof Ctor === 'function', 'node factory registered mqtt-broker');
 
 /* ------------------------- Boot a broker node ------------------------ */
 

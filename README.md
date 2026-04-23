@@ -1,4 +1,4 @@
-# node-red-contrib-mosquitto-broker
+# node-red-contrib-mqtt-broker
 
 Node-RED Node, der einen **Mosquitto-MQTT-Broker** als Kindprozess von Node-RED
 startet und verwaltet. Ein Node-RED-Deploy startet den Broker, ein Redeploy oder
@@ -32,7 +32,7 @@ per Auto-Install mit — Linux, macOS und Windows 10/11.
 ### Über Node-RED Palette (empfohlen)
 
 1. In Node-RED: ☰ → **Manage palette** → Tab **Install**.
-2. Nach `node-red-contrib-mosquitto-broker` suchen → **Install**, ODER
+2. Nach `node-red-contrib-mqtt-broker` suchen → **Install**, ODER
 3. Über das Upload-Icon das `.tgz` aus `dist/` hochladen.
 
 Der Postinstall läuft im Hintergrund und installiert Mosquitto. Schlägt er fehl
@@ -43,7 +43,7 @@ siehe Self-Heal.
 
 ```bash
 cd ~/.node-red
-npm install node-red-contrib-mosquitto-broker
+npm install node-red-contrib-mqtt-broker
 # Linux: benötigt root oder passwordless sudo
 # Windows: winget-Installer läuft bevorzugt per-user (kein UAC)
 ```
@@ -128,7 +128,7 @@ MQTT-Standard, kein Bug des Nodes.
 
 ## Beispiel-Flow
 
-Ein fertiger Flow liegt unter [`examples/mosquitto-broker.json`](examples/mosquitto-broker.json).
+Ein fertiger Flow liegt unter [`examples/mqtt-broker.json`](examples/mqtt-broker.json).
 Er startet den Broker, schickt `status` per Inject und zeigt die Antwort im Debug-Panel.
 
 Für die Topic-Inspektion hängst du einen zweiten Inject mit `payload=topics`

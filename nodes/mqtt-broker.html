@@ -1,5 +1,5 @@
 <script type="text/javascript">
-    RED.nodes.registerType('mosquitto-broker', {
+    RED.nodes.registerType('mqtt-broker', {
         category: 'network',
         color: '#D8BFD8',
         defaults: {
@@ -20,14 +20,14 @@
         outputs: 1,
         icon: 'bridge.svg',
         label: function () {
-            return this.name || ('mosquitto :' + (this.port || 1883));
+            return this.name || ('mqtt :' + (this.port || 1883));
         },
-        paletteLabel: 'mosquitto broker',
+        paletteLabel: 'mqtt broker',
         oneditprepare: function () {
             const customConfig = $('#node-input-configPath');
             const toggleCustom = () => {
                 const hasCustom = !!customConfig.val();
-                $('.mosquitto-generated-only').toggle(!hasCustom);
+                $('.mqtt-broker-generated-only').toggle(!hasCustom);
             };
             customConfig.on('input change', toggleCustom);
             toggleCustom();
@@ -35,7 +35,7 @@
     });
 </script>
 
-<script type="text/html" data-template-name="mosquitto-broker">
+<script type="text/html" data-template-name="mqtt-broker">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -48,19 +48,19 @@
         <label for="node-input-bind"><i class="fa fa-globe"></i> Bind</label>
         <input type="text" id="node-input-bind" placeholder="0.0.0.0 (leave blank for any)">
     </div>
-    <div class="form-row mosquitto-generated-only">
+    <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-allowAnonymous" style="width:auto"><i class="fa fa-user-o"></i> Allow anonymous</label>
         <input type="checkbox" id="node-input-allowAnonymous" style="width:auto; margin-left:6px">
     </div>
-    <div class="form-row mosquitto-generated-only">
+    <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-persistence" style="width:auto"><i class="fa fa-database"></i> Persistence</label>
         <input type="checkbox" id="node-input-persistence" style="width:auto; margin-left:6px">
     </div>
-    <div class="form-row mosquitto-generated-only">
+    <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
         <input type="text" id="node-input-username" placeholder="optional">
     </div>
-    <div class="form-row mosquitto-generated-only">
+    <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-password"><i class="fa fa-lock"></i> Password</label>
         <input type="password" id="node-input-password" placeholder="optional">
     </div>
@@ -79,7 +79,7 @@
     </div>
 </script>
 
-<script type="text/html" data-help-name="mosquitto-broker">
+<script type="text/html" data-help-name="mqtt-broker">
     <p>Starts and supervises a <a href="https://mosquitto.org/">Mosquitto</a>
        MQTT broker as a child process of Node-RED.</p>
 

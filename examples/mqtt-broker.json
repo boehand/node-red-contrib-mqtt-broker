@@ -2,13 +2,13 @@
     {
         "id": "f1",
         "type": "tab",
-        "label": "Mosquitto Broker",
+        "label": "MQTT Broker",
         "disabled": false,
         "info": ""
     },
     {
         "id": "b1",
-        "type": "mosquitto-broker",
+        "type": "mqtt-broker",
         "z": "f1",
         "name": "local broker",
         "port": 1883,
