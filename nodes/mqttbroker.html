@@ -131,7 +131,7 @@
     <ul>
         <li><code>payload: "topics"</code> -> list of all topic names,
             sorted.</li>
-        <li><code>payload: { command: "get", topic: "foo/bar" }</code>
+        <li><code>payload: { "command": "get", "topic": "foo/bar" } </code>
             or <code>payload: "get"</code> with
             <code>msg.topic = "foo/bar"</code> -> last value for that
             topic (as both decoded string and raw Buffer).</li>
