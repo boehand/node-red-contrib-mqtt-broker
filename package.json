@@ -24,7 +24,8 @@
     "scripts/",
     "examples/",
     "test/",
-    "docs/"
+    "docs/",
+    "README.md"
   ],
   "node-red": {
     "version": ">=3.0.0",
