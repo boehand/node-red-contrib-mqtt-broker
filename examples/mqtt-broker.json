@@ -7,42 +7,456 @@
         "info": ""
     },
     {
-        "id": "b1",
-        "type": "mqtt-broker",
+        "id": "daddeb48c0771fc8",
+        "type": "group",
         "z": "f1",
-        "name": "local broker",
-        "port": 1883,
-        "bind": "",
-        "allowAnonymous": true,
-        "persistence": false,
-        "binaryPath": "",
-        "configPath": "",
-        "logToConsole": true,
-        "x": 360,
-        "y": 160,
-        "wires": [["d1"]]
+        "name": "MQTT Broker Node",
+        "style": {
+            "label": true,
+            "color": "#8C101C"
+        },
+        "nodes": [
+            "i1",
+            "d1",
+            "1ef0b5957a6d4505",
+            "b64eeb6c19ceda0b",
+            "2523038476602b0c",
+            "3a17691a0d9d45fb",
+            "8718d3a9ff514713",
+            "189191060bb4e9ee",
+            "12cd6dae682e4d99",
+            "f0f3401ce953b4ea"
+        ],
+        "x": 74,
+        "y": 39,
+        "w": 692,
+        "h": 282
+    },
+    {
+        "id": "680352f4e690b908",
+        "type": "group",
+        "z": "f1",
+        "name": "Standard MQTT-Nodes for Publish and Subscribe",
+        "style": {
+            "label": true,
+            "color": "#8C101C"
+        },
+        "nodes": [
+            "9163ce7530e57447",
+            "2410f93e2f183a91",
+            "23e619978d6d93f4",
+            "b952a6caee634873",
+            "3be48dad97357285",
+            "10f6b9421439dd4f"
+        ],
+        "x": 74,
+        "y": 339,
+        "w": 692,
+        "h": 182
     },
     {
         "id": "i1",
         "type": "inject",
         "z": "f1",
-        "name": "status",
-        "props": [{"p": "payload"}],
+        "g": "daddeb48c0771fc8",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
         "payload": "status",
         "payloadType": "str",
-        "x": 150,
+        "x": 170,
         "y": 160,
-        "wires": [["b1"]]
+        "wires": [
+            [
+                "b1",
+                "1ef0b5957a6d4505"
+            ]
+        ]
     },
     {
         "id": "d1",
         "type": "debug",
         "z": "f1",
+        "g": "daddeb48c0771fc8",
         "name": "broker log",
         "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
         "complete": "payload",
-        "x": 570,
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 580,
         "y": 160,
         "wires": []
+    },
+    {
+        "id": "1ef0b5957a6d4505",
+        "type": "mqttbroker",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "",
+        "port": 1883,
+        "bind": "",
+        "allowAnonymous": true,
+        "persistence": true,
+        "binaryPath": "",
+        "configPath": "",
+        "logToConsole": false,
+        "x": 390,
+        "y": 160,
+        "wires": [
+            [
+                "d1",
+                "f0f3401ce953b4ea"
+            ]
+        ]
+    },
+    {
+        "id": "b64eeb6c19ceda0b",
+        "type": "inject",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
+        "payload": "start",
+        "payloadType": "str",
+        "x": 170,
+        "y": 80,
+        "wires": [
+            [
+                "1ef0b5957a6d4505"
+            ]
+        ]
+    },
+    {
+        "id": "2410f93e2f183a91",
+        "type": "inject",
+        "z": "f1",
+        "g": "680352f4e690b908",
+        "name": "Trigger",
+        "props": [],
+        "repeat": "2",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
+        "x": 180,
+        "y": 380,
+        "wires": [
+            [
+                "23e619978d6d93f4"
+            ]
+        ]
+    },
+    {
+        "id": "23e619978d6d93f4",
+        "type": "change",
+        "z": "f1",
+        "g": "680352f4e690b908",
+        "name": "random value via JSONata",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": " $floor($random() * 100) + 1",
+                "tot": "jsonata"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 430,
+        "y": 380,
+        "wires": [
+            [
+                "b952a6caee634873",
+                "9163ce7530e57447"
+            ]
+        ]
+    },
+    {
+        "id": "9163ce7530e57447",
+        "type": "mqtt out",
+        "z": "f1",
+        "g": "680352f4e690b908",
+        "name": "",
+        "topic": "foo/bar",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "b1",
+        "x": 680,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "b952a6caee634873",
+        "type": "debug",
+        "z": "f1",
+        "g": "680352f4e690b908",
+        "name": "result",
+        "active": true,
+        "tosidebar": false,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 670,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "2523038476602b0c",
+        "type": "inject",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
+        "payload": "topics",
+        "payloadType": "str",
+        "x": 170,
+        "y": 200,
+        "wires": [
+            [
+                "1ef0b5957a6d4505"
+            ]
+        ]
+    },
+    {
+        "id": "3a17691a0d9d45fb",
+        "type": "inject",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
+        "payload": "stop",
+        "payloadType": "str",
+        "x": 170,
+        "y": 120,
+        "wires": [
+            [
+                "1ef0b5957a6d4505"
+            ]
+        ]
+    },
+    {
+        "id": "8718d3a9ff514713",
+        "type": "inject",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "command get",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{ \"command\": \"get\", \"topic\": \"foo/bar\" }",
+        "payloadType": "json",
+        "x": 190,
+        "y": 240,
+        "wires": [
+            [
+                "1ef0b5957a6d4505"
+            ]
+        ]
+    },
+    {
+        "id": "189191060bb4e9ee",
+        "type": "inject",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "foo/bar",
+        "payload": "get",
+        "payloadType": "str",
+        "x": 180,
+        "y": 280,
+        "wires": [
+            [
+                "1ef0b5957a6d4505"
+            ]
+        ]
+    },
+    {
+        "id": "12cd6dae682e4d99",
+        "type": "debug",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "found log",
+        "active": true,
+        "tosidebar": false,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload.value",
+        "statusType": "msg",
+        "x": 660,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "f0f3401ce953b4ea",
+        "type": "switch",
+        "z": "f1",
+        "g": "daddeb48c0771fc8",
+        "name": "filter",
+        "property": "payload.found",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "nnull"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 530,
+        "y": 220,
+        "wires": [
+            [
+                "12cd6dae682e4d99"
+            ]
+        ]
+    },
+    {
+        "id": "3be48dad97357285",
+        "type": "mqtt in",
+        "z": "f1",
+        "g": "680352f4e690b908",
+        "name": "",
+        "topic": "foo/bar",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "b1",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 190,
+        "y": 480,
+        "wires": [
+            [
+                "10f6b9421439dd4f"
+            ]
+        ]
+    },
+    {
+        "id": "10f6b9421439dd4f",
+        "type": "debug",
+        "z": "f1",
+        "g": "680352f4e690b908",
+        "name": "result",
+        "active": true,
+        "tosidebar": false,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 350,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "b1",
+        "type": "mqtt-broker",
+        "z": "f1",
+        "name": "local broker",
+        "broker": "localhost",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 15,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "8717952006fc2685",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@stfi/node-red-contrib-mqtt-broker": "0.4.0"
+        }
     }
 ]
