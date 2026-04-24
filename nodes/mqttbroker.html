@@ -49,6 +49,19 @@
             };
             updateEnabled.on('change', toggleUpdate);
             toggleUpdate();
+
+            // Render the actual default persistence path (userDir-based) as
+            // placeholder text so users can see where data will land when
+            // they leave the field blank.
+            const nodeId = this.id || '<node-id>';
+            $.getJSON('mqttbroker/defaults', (data) => {
+                if (data && data.persistenceBase) {
+                    const sep = data.platform === 'win32' ? '\\' : '/';
+                    const def = data.persistenceBase + sep + nodeId + sep;
+                    $('#node-input-persistenceLocation')
+                        .attr('placeholder', 'default: ' + def);
+                }
+            });
         }
     });
 </script>
@@ -76,8 +89,7 @@
     </div>
     <div class="form-row mqtt-broker-generated-only mqtt-broker-persistence-only">
         <label for="node-input-persistenceLocation"><i class="fa fa-folder-open-o"></i> Persistence path</label>
-        <input type="text" id="node-input-persistenceLocation"
-               placeholder="optional; default = temp dir under the OS tempdir">
+        <input type="text" id="node-input-persistenceLocation">
     </div>
     <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
@@ -91,14 +103,15 @@
     <div class="form-row">
         <label for="node-input-installScope"><i class="fa fa-cubes"></i> Install scope</label>
         <select id="node-input-installScope" style="width:70%">
-            <option value="auto">Auto (reuse any existing mosquitto; install global if missing)</option>
+            <option value="auto">Auto (reuse any existing mosquitto; install LOCAL if missing)</option>
             <option value="global">Global (system-wide, via OS package manager)</option>
             <option value="local">Local (inside this module's vendor folder)</option>
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-binaryPath"><i class="fa fa-terminal"></i> Binary</label>
-        <input type="text" id="node-input-binaryPath" placeholder="mosquitto (found on PATH)">
+        <label for="node-input-binaryPath"><i class="fa fa-terminal"></i> Mosquitto binary</label>
+        <input type="text" id="node-input-binaryPath"
+               placeholder="optional path to mosquitto executable; empty = auto (via install scope)">
     </div>
     <div class="form-row">
         <label for="node-input-configPath"><i class="fa fa-file-o"></i> Config file</label>
@@ -114,7 +127,7 @@
         <input type="number" id="node-input-updateCheckInterval" min="1" placeholder="15" style="width:120px">
     </div>
     <div class="form-row">
-        <label for="node-input-logToConsole" style="width:auto"><i class="fa fa-file-text-o"></i> Log to Node-RED console</label>
+        <label for="node-input-logToConsole" style="width:auto"><i class="fa fa-file-text-o"></i> Show broker logs in Debug sidebar</label>
         <input type="checkbox" id="node-input-logToConsole" style="width:auto; margin-left:6px">
     </div>
 </script>
@@ -126,8 +139,10 @@
     <h3>Install scope</h3>
     <ul>
         <li><b>Auto</b>: if any mosquitto binary is already on the machine
-            it is reused (no duplicate install). Otherwise the system-wide
-            package manager is used.</li>
+            it is reused (no duplicate install). If none is found, a
+            <b>local</b> install is attempted first (no sudo, no system
+            pollution). Only if that fails does the node fall back to a
+            global install.</li>
         <li><b>Global</b>: forces the system-wide install path (apt/dnf/yum
             /zypper/pacman/apk on Linux, Homebrew on macOS,
             winget/choco/direct download on Windows). Skipped if a global
@@ -145,6 +160,15 @@
             use the local copy.</li>
     </ul>
 
+    <h3>Mosquitto binary</h3>
+    <p>Absolute path to the <code>mosquitto</code> / <code>mosquitto.exe</code>
+       executable. <b>Leave empty</b> to let the node auto-locate it using
+       the selected <i>Install scope</i> - that is the recommended mode.
+       Set an explicit path only when you want to pin a specific build or
+       point to a binary outside the paths the node would search on its
+       own. When a binary path is set, the install scope and auto-installer
+       are bypassed.</p>
+
     <h3>Update check</h3>
     <p>When enabled, the node queries the official Mosquitto release feed
        shortly after startup and then every <i>N</i> minutes (default 15,
@@ -157,11 +181,20 @@
 
     <h3>Persistence path</h3>
     <p>When <b>Persistence</b> is on, Mosquitto's
-       <code>persistence_location</code> defaults to a temp directory that
-       is cleared when Node-RED stops. Fill in <b>Persistence path</b> to
-       point at a location you control (e.g. <code>/var/lib/mosquitto/</code>
-       or <code>C:\\ProgramData\\mosquitto\\</code>) - the directory is
-       created if missing.</p>
+       <code>persistence_location</code> defaults to
+       <code>&lt;Node-RED userDir&gt;/mqtt-broker-persistence/&lt;node-id&gt;/</code>
+       (the actual path is shown as a placeholder in the field) so the data
+       survives redeploys and Node-RED restarts. Fill in a path here to
+       override the default (e.g. <code>/var/lib/mosquitto/</code> or
+       <code>C:\\ProgramData\\mosquitto\\</code>). The directory is created
+       if missing.</p>
+
+    <h3>Show broker logs in Debug sidebar</h3>
+    <p>When on, every stdout/stderr line from mosquitto is also published
+       via <code>node.warn()</code>, which Node-RED shows in the <i>Debug</i>
+       sidebar (and in the server log). Leave off if you only want the
+       <code>mosquitto/stdout</code> / <code>mosquitto/stderr</code> output
+       messages.</p>
 
     <h3>Prerequisites</h3>
     <p>A post-install script installs <code>mosquitto</code> automatically

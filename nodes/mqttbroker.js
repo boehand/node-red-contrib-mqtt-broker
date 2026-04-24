@@ -18,6 +18,27 @@ module.exports = function (RED) {
         return process.platform === 'win32' ? 'mosquitto.exe' : 'mosquitto';
     }
 
+    function defaultPersistenceBase() {
+        const userDir = (RED.settings && RED.settings.userDir)
+            || path.join(os.homedir(), '.node-red');
+        return path.join(userDir, 'mqtt-broker-persistence');
+    }
+
+    function defaultPersistenceDirFor(nodeId) {
+        return path.join(defaultPersistenceBase(), nodeId || 'default');
+    }
+
+    // Editor helper: lets the HTML side render the actual default path in
+    // the persistence-path placeholder instead of a vague "temp dir" hint.
+    RED.httpAdmin.get('/mqttbroker/defaults',
+        RED.auth.needsPermission('mqttbroker.read'),
+        (req, res) => {
+            res.json({
+                persistenceBase: defaultPersistenceBase(),
+                platform: process.platform
+            });
+        });
+
     function portInUse(port, host) {
         return new Promise((resolve) => {
             const tester = net.createServer()
@@ -55,7 +76,10 @@ module.exports = function (RED) {
         const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nr-mosquitto-'));
         const generatedConfig = path.join(workDir, 'mosquitto.conf');
         const pwFile = path.join(workDir, 'passwd');
-        const defaultPersistenceDir = path.join(workDir, 'data');
+        // Persistence default lives under userDir so data survives redeploys
+        // and Node-RED restarts - otherwise "Persistence" would only cover
+        // the lifetime of this node instance, which defeats the point.
+        const defaultPersistenceDir = defaultPersistenceDirFor(node.id);
 
         let child = null;
         let stopping = false;
@@ -296,13 +320,19 @@ module.exports = function (RED) {
 
                 child.stdout.on('data', (data) => {
                     const text = data.toString().trim();
-                    if (logToConsole && text) node.log(text);
+                    if (text && logToConsole) {
+                        // node.warn is what users perceive as "Node-RED
+                        // console": it is written to the server log AND to
+                        // the Debug sidebar. node.log only reaches the
+                        // server log, which many users never see.
+                        node.warn('[mosquitto] ' + text);
+                    }
                     node.send({ topic: 'mosquitto/stdout', payload: text });
                 });
 
                 child.stderr.on('data', (data) => {
                     const text = data.toString().trim();
-                    if (logToConsole && text) node.warn(text);
+                    if (text && logToConsole) node.warn('[mosquitto] ' + text);
                     node.send({ topic: 'mosquitto/stderr', payload: text });
                 });
 
