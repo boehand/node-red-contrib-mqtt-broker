@@ -81,20 +81,21 @@ npm run install-mosquitto    # from the module directory
 | Bind | _(empty)_ | IP to bind; empty = all interfaces |
 | Allow anonymous | `true` | Allow clients without credentials |
 | Persistence | `false` | Turn on Mosquitto persistence |
-| Persistence path | _(empty)_ | `persistence_location` directory. Editable; empty = temp dir under the OS tempdir |
+| Persistence path | _(empty)_ | `persistence_location` directory. Editable; empty = `<Node-RED userDir>/mqtt-broker-persistence/<node-id>/` (shown as placeholder in the editor) so data survives restarts |
 | Username / Password | — | Optional; the password file is hashed via `mosquitto_passwd` |
 | Install scope | `auto` | `auto` / `global` / `local` — see below |
-| Binary | _(empty)_ | Path to `mosquitto`/`mosquitto.exe`; empty = auto-lookup |
+| Mosquitto binary | _(empty)_ | Absolute path to the `mosquitto` executable. Leave empty to auto-locate via the install scope. Set only to pin a specific build; then the install scope / auto-installer is bypassed |
 | Config file | _(empty)_ | Custom `.conf`; overrides every field above |
 | Check for updates | `true` | Poll the Mosquitto release feed for a newer version |
 | Interval (min) | `15` | Update-check period in minutes |
-| Log to Node-RED console | `false` | Also surface broker logs in the Node-RED log |
+| Show broker logs in Debug sidebar | `false` | When on, stdout/stderr is also surfaced via `node.warn()` so it appears in the Node-RED Debug sidebar and the server log |
+| Also log to terminal (stdout/stderr) | `false` | When on, stdout/stderr is additionally written straight to the Node-RED process' terminal. Bypasses the logger level so it also works under systemd / log-forwarding setups. Can be combined with the Debug-sidebar option |
 
 ### Install scope
 
 | Scope | Behaviour |
 |---|---|
-| `auto` | Re-use any mosquitto already present on the machine. Only install (globally) if nothing is found. No duplicate installs. |
+| `auto` (default) | Re-use any mosquitto already present on the machine. If nothing is found, install **locally** first (no sudo, no system pollution) and only fall back to a global install if the local path isn't available. No duplicate installs. |
 | `global` | System-wide install via the OS package manager (apt/dnf/yum/zypper/pacman/apk, Homebrew, winget/choco/direct download). Skipped if a global copy already exists. |
 | `local` | Install a private copy inside `node-red-contrib-mqtt-broker/vendor/<platform>-<arch>/`. Linux (Debian family) uses `apt-get download` + `dpkg-deb -x` without root; Windows uses the NSIS installer with `/D=<vendor dir>`. macOS does not currently support a local install. If a global copy is also present, the node logs a note and uses the local one. |
 
