@@ -65,6 +65,7 @@ module.exports = function (RED) {
         const installScope = (config.installScope || 'auto').trim();
         let binaryPath = resolveBinary(config.binaryPath, installScope);
         const logToConsole = !!config.logToConsole;
+        const logToTerminal = !!config.logToTerminal;
 
         const updateCheckEnabled = config.updateCheckEnabled !== false;
         const rawInterval = parseInt(config.updateCheckInterval, 10);
@@ -327,12 +328,22 @@ module.exports = function (RED) {
                         // server log, which many users never see.
                         node.warn('[mosquitto] ' + text);
                     }
+                    if (text && logToTerminal) {
+                        // Direct write to the real stdout - bypasses the
+                        // Node-RED logger level so it also appears when
+                        // Node-RED is launched in a terminal without any
+                        // logger config.
+                        process.stdout.write('[mosquitto] ' + text + '\n');
+                    }
                     node.send({ topic: 'mosquitto/stdout', payload: text });
                 });
 
                 child.stderr.on('data', (data) => {
                     const text = data.toString().trim();
                     if (text && logToConsole) node.warn('[mosquitto] ' + text);
+                    if (text && logToTerminal) {
+                        process.stderr.write('[mosquitto] ' + text + '\n');
+                    }
                     node.send({ topic: 'mosquitto/stderr', payload: text });
                 });
 

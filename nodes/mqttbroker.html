@@ -14,7 +14,8 @@
             installScope:         { value: 'auto' },
             updateCheckEnabled:   { value: true },
             updateCheckInterval:  { value: 15, validate: RED.validators.number() },
-            logToConsole:         { value: false }
+            logToConsole:         { value: false },
+            logToTerminal:        { value: false }
         },
         credentials: {
             username: { type: 'text' },
@@ -130,6 +131,10 @@
         <label for="node-input-logToConsole" style="width:auto"><i class="fa fa-file-text-o"></i> Show broker logs in Debug sidebar</label>
         <input type="checkbox" id="node-input-logToConsole" style="width:auto; margin-left:6px">
     </div>
+    <div class="form-row">
+        <label for="node-input-logToTerminal" style="width:auto"><i class="fa fa-terminal"></i> Also log to terminal (stdout/stderr)</label>
+        <input type="checkbox" id="node-input-logToTerminal" style="width:auto; margin-left:6px">
+    </div>
 </script>
 
 <script type="text/html" data-help-name="mqttbroker">
@@ -189,12 +194,25 @@
        <code>C:\\ProgramData\\mosquitto\\</code>). The directory is created
        if missing.</p>
 
-    <h3>Show broker logs in Debug sidebar</h3>
-    <p>When on, every stdout/stderr line from mosquitto is also published
-       via <code>node.warn()</code>, which Node-RED shows in the <i>Debug</i>
-       sidebar (and in the server log). Leave off if you only want the
-       <code>mosquitto/stdout</code> / <code>mosquitto/stderr</code> output
-       messages.</p>
+    <h3>Log visibility</h3>
+    <p>The two independent checkboxes at the bottom of the config control
+       where the broker output is echoed in addition to the
+       <code>mosquitto/stdout</code> / <code>mosquitto/stderr</code>
+       messages:</p>
+    <ul>
+        <li><b>Show broker logs in Debug sidebar</b> - every stdout/stderr
+            line is surfaced via <code>node.warn()</code>, which Node-RED
+            shows in the <i>Debug</i> sidebar of the editor and in the
+            server log.</li>
+        <li><b>Also log to terminal (stdout/stderr)</b> - every line is
+            additionally written directly to the Node-RED process'
+            <code>stdout</code> / <code>stderr</code>. This bypasses the
+            Node-RED logger level so the output is visible even when
+            Node-RED is started from a terminal without any logger config
+            tweaks, or when Node-RED runs under a service that forwards
+            stdout to <code>journalctl</code> / a log file.</li>
+    </ul>
+    <p>Both can be enabled together or independently.</p>
 
     <h3>Prerequisites</h3>
     <p>A post-install script installs <code>mosquitto</code> automatically

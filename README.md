@@ -89,6 +89,7 @@ npm run install-mosquitto    # from the module directory
 | Check for updates | `true` | Poll the Mosquitto release feed for a newer version |
 | Interval (min) | `15` | Update-check period in minutes |
 | Show broker logs in Debug sidebar | `false` | When on, stdout/stderr is also surfaced via `node.warn()` so it appears in the Node-RED Debug sidebar and the server log |
+| Also log to terminal (stdout/stderr) | `false` | When on, stdout/stderr is additionally written straight to the Node-RED process' terminal. Bypasses the logger level so it also works under systemd / log-forwarding setups. Can be combined with the Debug-sidebar option |
 
 ### Install scope
 
