@@ -9,11 +9,11 @@ module.exports = function (RED) {
     const mqtt = require('mqtt');
     const installLib = require('../lib/install-lib.js');
 
-    function resolveBinary(userPath) {
+    function resolveBinary(userPath, scope) {
         if (userPath && userPath.trim() !== '') {
             return userPath.trim();
         }
-        const found = installLib.findBinary();
+        const found = installLib.findBinary({ scope: scope || 'any' });
         if (found) return found;
         return process.platform === 'win32' ? 'mosquitto.exe' : 'mosquitto';
     }
@@ -39,9 +39,15 @@ module.exports = function (RED) {
         const bind = (config.bind || '').trim();
         const allowAnonymous = config.allowAnonymous !== false;
         const persistence = !!config.persistence;
+        const persistenceLocation = (config.persistenceLocation || '').trim();
         const customConfigPath = (config.configPath || '').trim();
-        let binaryPath = resolveBinary(config.binaryPath);
+        const installScope = (config.installScope || 'auto').trim();
+        let binaryPath = resolveBinary(config.binaryPath, installScope);
         const logToConsole = !!config.logToConsole;
+
+        const updateCheckEnabled = config.updateCheckEnabled !== false;
+        const rawInterval = parseInt(config.updateCheckInterval, 10);
+        const updateCheckIntervalMin = (rawInterval && rawInterval > 0) ? rawInterval : 15;
 
         const username = (node.credentials && node.credentials.username) || '';
         const password = (node.credentials && node.credentials.password) || '';
@@ -49,20 +55,26 @@ module.exports = function (RED) {
         const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nr-mosquitto-'));
         const generatedConfig = path.join(workDir, 'mosquitto.conf');
         const pwFile = path.join(workDir, 'passwd');
-        const persistenceDir = path.join(workDir, 'data');
+        const defaultPersistenceDir = path.join(workDir, 'data');
 
         let child = null;
         let stopping = false;
         let restartTimer = null;
         let mqttClient = null;
-        const topics = new Map(); // topic -> { payload, timestamp, qos, retain }
+        let updateTimer = null;
+        let initialUpdateTimer = null;
+        let lastUpdateInfo = null;
+        const topics = new Map();
 
         function bufferToView(buf) {
-            // Try to expose the payload as a JS-friendly value. UTF-8
-            // decode as a best-effort; keep the raw Buffer too.
             let string = null;
             try { string = buf.toString('utf8'); } catch (e) { /* binary */ }
             return { raw: buf, string };
+        }
+
+        function effectivePersistenceDir() {
+            // User-supplied path wins; fall back to a tmp dir under workDir.
+            return persistenceLocation || defaultPersistenceDir;
         }
 
         function connectInternalClient() {
@@ -115,14 +127,8 @@ module.exports = function (RED) {
 
         function writePasswordFile() {
             if (!username || !password) return null;
-            // Plain format: mosquitto can read a plain user:password file when
-            // `password_file` is combined with `allow_plain_passwords true`.
-            // However, that option only exists on some builds. The portable
-            // solution is to ask mosquitto_passwd to hash it. If that is not
-            // available, fall back to plain format and warn the user.
             const plainContent = `${username}:${password}\n`;
             fs.writeFileSync(pwFile, plainContent, { mode: 0o600 });
-            // Try to hash via mosquitto_passwd if available.
             try {
                 const hasher = spawn('mosquitto_passwd', ['-U', pwFile]);
                 return new Promise((resolve) => {
@@ -156,9 +162,15 @@ module.exports = function (RED) {
                 lines.push(`password_file ${pwFile}`);
             }
             if (persistence) {
-                fs.mkdirSync(persistenceDir, { recursive: true });
+                const dir = effectivePersistenceDir();
+                try {
+                    fs.mkdirSync(dir, { recursive: true });
+                } catch (err) {
+                    node.warn(`Could not create persistence dir ${dir}: ${err.message}`);
+                }
                 lines.push('persistence true');
-                lines.push(`persistence_location ${persistenceDir}${path.sep}`);
+                const sep = dir.endsWith(path.sep) ? '' : path.sep;
+                lines.push(`persistence_location ${dir}${sep}`);
             } else {
                 lines.push('persistence false');
             }
@@ -173,38 +185,56 @@ module.exports = function (RED) {
             node.status({ fill, shape, text });
         }
 
-        async function ensureBinaryAvailable() {
-            // Skip the auto-install if the user pinned a custom binary -
-            // they know what they want.
-            if (config.binaryPath && config.binaryPath.trim() !== '') return true;
-            if (installLib.findBinary()) return true;
+        async function ensureBinaryAvailable(opts) {
+            opts = opts || {};
+            const scope = opts.scope || installScope;
+            const force = !!opts.force;
 
-            setStatus('blue', 'ring', 'installing mosquitto');
-            node.warn('mosquitto binary not found; attempting auto-install. ' +
-                'On Windows this may surface a UAC prompt.');
+            // Skip the auto-install if the user pinned a custom binary.
+            if (!force && config.binaryPath && config.binaryPath.trim() !== '') {
+                return { ok: true, path: config.binaryPath.trim(), scope: 'custom',
+                    alreadyInstalled: true };
+            }
+            if (!force) {
+                const existing = installLib.findBinary({
+                    scope: scope === 'auto' ? 'any' : scope
+                });
+                if (existing) {
+                    binaryPath = resolveBinary(config.binaryPath, scope);
+                    return { ok: true, path: existing,
+                        scope: existing.startsWith(installLib.VENDOR_DIR) ? 'local' : 'global',
+                        alreadyInstalled: true };
+                }
+            }
+
+            setStatus('blue', 'ring', force ? 'updating mosquitto' : 'installing mosquitto');
+            node.warn(force
+                ? `Installing mosquitto update (scope=${scope}) ...`
+                : `mosquitto binary not found; attempting install (scope=${scope}). ` +
+                  'On Windows this may surface a UAC prompt.');
 
             const logger = {
                 log:  (m) => node.log(m),
                 warn: (m) => node.warn(m)
             };
-            const res = await installLib.ensureInstalled({ logger });
+            const res = await installLib.ensureInstalled({ logger, scope, force });
             if (res.ok) {
-                node.log(`mosquitto installed at ${res.path}`);
-                // Refresh the resolved binary path now that it exists.
-                binaryPath = resolveBinary(config.binaryPath);
-                return true;
+                node.log(`mosquitto ready at ${res.path} (scope=${res.scope})`);
+                binaryPath = resolveBinary(config.binaryPath, scope);
+                return res;
             }
             setStatus('red', 'ring', 'install failed');
             node.error('Auto-install of mosquitto failed. Send {"payload":"install"} ' +
                 'to the node to retry, or install mosquitto manually and redeploy.');
-            return false;
+            return res;
         }
 
         async function start() {
             if (child) return;
 
             try {
-                if (!(await ensureBinaryAvailable())) return;
+                const ensured = await ensureBinaryAvailable();
+                if (!ensured.ok) return;
 
                 const inUse = await portInUse(port, bind || '0.0.0.0');
                 if (inUse) {
@@ -231,8 +261,28 @@ module.exports = function (RED) {
 
                 setStatus('yellow', 'ring', 'starting');
 
+                // Locally-installed mosquitto on Linux ships its shared libs
+                // under VENDOR_DIR/usr/lib; teach the child process how to
+                // find them.
+                const spawnEnv = Object.assign({}, process.env);
+                if (ensured.scope === 'local' && process.platform === 'linux') {
+                    const libDirs = [
+                        path.join(installLib.VENDOR_DIR, 'usr', 'lib',
+                            `${process.arch === 'x64' ? 'x86_64' : process.arch}-linux-gnu`),
+                        path.join(installLib.VENDOR_DIR, 'usr', 'lib'),
+                        path.join(installLib.VENDOR_DIR, 'lib')
+                    ].filter(d => { try { return fs.statSync(d).isDirectory(); } catch (_) { return false; } });
+                    if (libDirs.length) {
+                        spawnEnv.LD_LIBRARY_PATH = [
+                            ...libDirs,
+                            spawnEnv.LD_LIBRARY_PATH || ''
+                        ].filter(Boolean).join(path.delimiter);
+                    }
+                }
+
                 child = spawn(binaryPath, ['-c', configFileToUse], {
-                    stdio: ['ignore', 'pipe', 'pipe']
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    env: spawnEnv
                 });
 
                 child.on('error', (err) => {
@@ -274,14 +324,14 @@ module.exports = function (RED) {
                     }
                 });
 
-                // Give the broker a moment to actually bind, then mark
-                // running and attach the internal topic-tracking client.
                 setTimeout(() => {
                     if (child) {
                         setStatus('green', 'dot', `running :${port}`);
                         connectInternalClient();
                     }
                 }, 500);
+
+                scheduleUpdateChecks();
             } catch (err) {
                 setStatus('red', 'ring', 'start failed');
                 node.error('Error starting broker: ' + err.message);
@@ -291,6 +341,7 @@ module.exports = function (RED) {
         function stop(done) {
             stopping = true;
             disconnectInternalClient();
+            cancelUpdateChecks();
             if (restartTimer) {
                 clearTimeout(restartTimer);
                 restartTimer = null;
@@ -319,6 +370,83 @@ module.exports = function (RED) {
             }
         }
 
+        /* ---------------------- update checking ---------------------- */
+
+        async function runUpdateCheck(silent) {
+            try {
+                const info = await installLib.checkForUpdate(binaryPath);
+                lastUpdateInfo = Object.assign({ checkedAt: Date.now() }, info);
+                if (!silent || info.updateAvailable) {
+                    node.send({ topic: 'mosquitto/update', payload: lastUpdateInfo });
+                }
+                if (info.updateAvailable) {
+                    node.log(`mosquitto update available: ${info.installed} -> ${info.latest}. ` +
+                        'Send {"payload":"update"} to install.');
+                }
+                return lastUpdateInfo;
+            } catch (err) {
+                node.warn(`update check failed: ${err.message}`);
+                return { error: err.message };
+            }
+        }
+
+        function scheduleUpdateChecks() {
+            cancelUpdateChecks();
+            if (!updateCheckEnabled) return;
+            // First check shortly after start so the UI becomes informative
+            // without waiting for the full interval to elapse.
+            initialUpdateTimer = setTimeout(() => {
+                initialUpdateTimer = null;
+                runUpdateCheck(true);
+            }, 10000);
+            const intervalMs = updateCheckIntervalMin * 60 * 1000;
+            updateTimer = setInterval(() => runUpdateCheck(true), intervalMs);
+        }
+
+        function cancelUpdateChecks() {
+            if (initialUpdateTimer) {
+                clearTimeout(initialUpdateTimer);
+                initialUpdateTimer = null;
+            }
+            if (updateTimer) {
+                clearInterval(updateTimer);
+                updateTimer = null;
+            }
+        }
+
+        async function performUpdate(send) {
+            // Re-check before installing so we don't force-reinstall when
+            // the node's cached view is stale.
+            const info = await runUpdateCheck(true);
+            if (!info || !info.updateAvailable) {
+                send({ topic: 'mosquitto/update', payload: Object.assign(
+                    { installed: info && info.installed, latest: info && info.latest,
+                      updateAvailable: false, updated: false,
+                      message: 'no update available' })
+                });
+                return;
+            }
+            const wasRunning = !!child;
+            if (wasRunning) {
+                await new Promise((resolve) => stop(resolve));
+                stopping = false;
+            }
+            const res = await ensureBinaryAvailable({ force: true, scope: installScope });
+            const newVersion = res.ok ? installLib.getInstalledVersion(binaryPath) : null;
+            send({ topic: 'mosquitto/update', payload: {
+                installed: newVersion,
+                latest: info.latest,
+                updateAvailable: !!(newVersion && info.latest &&
+                    installLib.compareVersions(newVersion, info.latest) < 0),
+                updated: !!res.ok,
+                scope: res.scope,
+                path: res.path
+            } });
+            if (wasRunning) {
+                await start();
+            }
+        }
+
         node.on('input', (msg, send, doneCb) => {
             const cmd = (msg.payload && typeof msg.payload === 'object')
                 ? msg.payload.command
@@ -340,18 +468,40 @@ module.exports = function (RED) {
             }
             if (cmd === 'status') {
                 send({ topic: 'mosquitto/status', payload: {
-                    running: !!child, port, bind, binary: binaryPath
+                    running: !!child,
+                    port,
+                    bind,
+                    binary: binaryPath,
+                    scope: installScope,
+                    persistence,
+                    persistenceLocation: persistence ? effectivePersistenceDir() : null,
+                    updateCheckEnabled,
+                    updateCheckIntervalMin,
+                    lastUpdateInfo
                 } });
                 doneCb && doneCb();
                 return;
             }
             if (cmd === 'install') {
-                ensureBinaryAvailable().then((ok) => {
+                const scopeArg = (msg.payload && typeof msg.payload === 'object'
+                    && msg.payload.scope) || installScope;
+                ensureBinaryAvailable({ scope: scopeArg }).then((res) => {
                     send({ topic: 'mosquitto/install', payload: {
-                        ok, binary: ok ? binaryPath : null
+                        ok: !!res.ok,
+                        binary: res.ok ? binaryPath : null,
+                        scope: res.scope,
+                        alreadyInstalled: !!res.alreadyInstalled
                     } });
                     doneCb && doneCb();
                 });
+                return;
+            }
+            if (cmd === 'check-update') {
+                runUpdateCheck(false).then(() => doneCb && doneCb());
+                return;
+            }
+            if (cmd === 'update') {
+                performUpdate(send).then(() => doneCb && doneCb());
                 return;
             }
             if (cmd === 'topics') {
@@ -360,7 +510,6 @@ module.exports = function (RED) {
                 return;
             }
             if (cmd === 'get') {
-                // Topic name: msg.payload.topic, or msg.topic when payload is just 'get'.
                 const wanted = (msg.payload && typeof msg.payload === 'object' && msg.payload.topic)
                     || msg.topic
                     || '';

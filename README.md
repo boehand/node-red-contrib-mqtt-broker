@@ -13,16 +13,25 @@ macOS, and Windows 10/11.
 
 - **Mosquitto is installed automatically** (apt/dnf/yum/zypper/pacman/apk on
   Linux, Homebrew on macOS, winget/choco/direct download on Windows).
+- **Install scope is selectable** — reuse an existing system install
+  (*auto*), force a system-wide install (*global*), or install a private
+  copy inside the module's `vendor/` directory (*local*). The node always
+  checks for an existing mosquitto before installing, to avoid duplicates.
+- **Update check**: after start and every _N_ minutes (default 15,
+  configurable), the node queries the official Mosquitto release feed and
+  reports on `mosquitto/update`. Send `payload: "update"` to install a
+  newer version without manual steps.
 - **Self-heal**: if the binary is missing at first deploy, the installer runs
   again interactively — important on Windows, where the UAC prompt cannot
   surface during the palette manager's `npm install`.
 - **Full broker control via messages**: `start`, `stop`, `restart`, `status`,
-  `install`.
+  `install`, `check-update`, `update`.
 - **Topic inspection**: `topics` lists every topic name the broker has seen;
   `get` returns the last value of a topic together with raw bytes, QoS, and
   timestamp.
-- **UI-configurable**: port, bind address, anonymous access, persistence,
-  username/password, optional custom `mosquitto.conf`.
+- **UI-configurable**: port, bind address, anonymous access, persistence
+  (with an editable `persistence_location` path), username/password,
+  install scope, update-check interval, optional custom `mosquitto.conf`.
 - Emits broker logs as Node-RED messages (`mosquitto/stdout`,
   `mosquitto/stderr`).
 - **Auto-restart** on unexpected exit (5 s backoff).
@@ -71,11 +80,23 @@ npm run install-mosquitto    # from the module directory
 | Port | `1883` | Listen port |
 | Bind | _(empty)_ | IP to bind; empty = all interfaces |
 | Allow anonymous | `true` | Allow clients without credentials |
-| Persistence | `false` | Mosquitto persistence in a temporary directory |
+| Persistence | `false` | Turn on Mosquitto persistence |
+| Persistence path | _(empty)_ | `persistence_location` directory. Editable; empty = temp dir under the OS tempdir |
 | Username / Password | — | Optional; the password file is hashed via `mosquitto_passwd` |
+| Install scope | `auto` | `auto` / `global` / `local` — see below |
 | Binary | _(empty)_ | Path to `mosquitto`/`mosquitto.exe`; empty = auto-lookup |
 | Config file | _(empty)_ | Custom `.conf`; overrides every field above |
+| Check for updates | `true` | Poll the Mosquitto release feed for a newer version |
+| Interval (min) | `15` | Update-check period in minutes |
 | Log to Node-RED console | `false` | Also surface broker logs in the Node-RED log |
+
+### Install scope
+
+| Scope | Behaviour |
+|---|---|
+| `auto` | Re-use any mosquitto already present on the machine. Only install (globally) if nothing is found. No duplicate installs. |
+| `global` | System-wide install via the OS package manager (apt/dnf/yum/zypper/pacman/apk, Homebrew, winget/choco/direct download). Skipped if a global copy already exists. |
+| `local` | Install a private copy inside `node-red-contrib-mqtt-broker/vendor/<platform>-<arch>/`. Linux (Debian family) uses `apt-get download` + `dpkg-deb -x` without root; Windows uses the NSIS installer with `/D=<vendor dir>`. macOS does not currently support a local install. If a global copy is also present, the node logs a note and uses the local one. |
 
 ---
 
@@ -89,7 +110,9 @@ Payload as a string or as an object `{ command: "…", … }`.
 | `stop` | Stop the broker | — |
 | `restart` | Restart the broker | — |
 | `status` | Report runtime state | `mosquitto/status` |
-| `install` | Re-run the auto-installer | `mosquitto/install` |
+| `install` | Re-run the auto-installer. Accepts an optional `scope` override: `{ command:"install", scope:"local" }`. | `mosquitto/install` |
+| `check-update` | Force an immediate update check | `mosquitto/update` |
+| `update` | Install the newest mosquitto release using the configured scope. Broker is stopped for the install and re-started afterwards. | `mosquitto/update` |
 | `topics` | Sorted list of every topic seen | `mosquitto/topics` |
 | `get` | Last value for a single topic | `mosquitto/get` |
 
@@ -113,8 +136,9 @@ msg.payload = "get";
 |---|---|
 | `mosquitto/stdout` | stdout line from the broker |
 | `mosquitto/stderr` | stderr line |
-| `mosquitto/status` | `{ running, port, bind, binary }` |
-| `mosquitto/install` | `{ ok, binary }` |
+| `mosquitto/status` | `{ running, port, bind, binary, scope, persistence, persistenceLocation, updateCheckEnabled, updateCheckIntervalMin, lastUpdateInfo }` |
+| `mosquitto/install` | `{ ok, binary, scope, alreadyInstalled }` |
+| `mosquitto/update` | `{ installed, latest, updateAvailable, updated?, scope?, path?, checkedAt }` |
 | `mosquitto/topics` | `string[]` — topic names, sorted |
 | `mosquitto/get` | `{ topic, found, value, buffer, qos, retain, timestamp }` |
 
