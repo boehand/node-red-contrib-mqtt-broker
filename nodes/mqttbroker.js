@@ -33,9 +33,12 @@ module.exports = function (RED) {
     RED.httpAdmin.get('/mqttbroker/defaults',
         RED.auth.needsPermission('mqttbroker.read'),
         (req, res) => {
+            const scope = (req.query && req.query.scope) || 'any';
             res.json({
                 persistenceBase: defaultPersistenceBase(),
-                platform: process.platform
+                platform: process.platform,
+                pathSep: path.sep,
+                resolvedBinary: installLib.findBinary({ scope })
             });
         });
 
