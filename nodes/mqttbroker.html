@@ -3,14 +3,18 @@
         category: 'network',
         color: '#D8BFD8',
         defaults: {
-            name:          { value: '' },
-            port:          { value: 1883, required: true, validate: RED.validators.number() },
-            bind:          { value: '' },
-            allowAnonymous:{ value: true },
-            persistence:   { value: false },
-            binaryPath:    { value: '' },
-            configPath:    { value: '' },
-            logToConsole:  { value: false }
+            name:                 { value: '' },
+            port:                 { value: 1883, required: true, validate: RED.validators.number() },
+            bind:                 { value: '' },
+            allowAnonymous:       { value: true },
+            persistence:          { value: false },
+            persistenceLocation:  { value: '' },
+            binaryPath:           { value: '' },
+            configPath:           { value: '' },
+            installScope:         { value: 'auto' },
+            updateCheckEnabled:   { value: true },
+            updateCheckInterval:  { value: 15, validate: RED.validators.number() },
+            logToConsole:         { value: false }
         },
         credentials: {
             username: { type: 'text' },
@@ -31,6 +35,20 @@
             };
             customConfig.on('input change', toggleCustom);
             toggleCustom();
+
+            const persistence = $('#node-input-persistence');
+            const togglePersistence = () => {
+                $('.mqtt-broker-persistence-only').toggle(persistence.is(':checked'));
+            };
+            persistence.on('change', togglePersistence);
+            togglePersistence();
+
+            const updateEnabled = $('#node-input-updateCheckEnabled');
+            const toggleUpdate = () => {
+                $('.mqtt-broker-update-only').toggle(updateEnabled.is(':checked'));
+            };
+            updateEnabled.on('change', toggleUpdate);
+            toggleUpdate();
         }
     });
 </script>
@@ -56,6 +74,11 @@
         <label for="node-input-persistence" style="width:auto"><i class="fa fa-database"></i> Persistence</label>
         <input type="checkbox" id="node-input-persistence" style="width:auto; margin-left:6px">
     </div>
+    <div class="form-row mqtt-broker-generated-only mqtt-broker-persistence-only">
+        <label for="node-input-persistenceLocation"><i class="fa fa-folder-open-o"></i> Persistence path</label>
+        <input type="text" id="node-input-persistenceLocation"
+               placeholder="optional; default = temp dir under the OS tempdir">
+    </div>
     <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
         <input type="text" id="node-input-username" placeholder="optional">
@@ -66,12 +89,29 @@
     </div>
     <hr>
     <div class="form-row">
+        <label for="node-input-installScope"><i class="fa fa-cubes"></i> Install scope</label>
+        <select id="node-input-installScope" style="width:70%">
+            <option value="auto">Auto (reuse any existing mosquitto; install global if missing)</option>
+            <option value="global">Global (system-wide, via OS package manager)</option>
+            <option value="local">Local (inside this module's vendor folder)</option>
+        </select>
+    </div>
+    <div class="form-row">
         <label for="node-input-binaryPath"><i class="fa fa-terminal"></i> Binary</label>
         <input type="text" id="node-input-binaryPath" placeholder="mosquitto (found on PATH)">
     </div>
     <div class="form-row">
         <label for="node-input-configPath"><i class="fa fa-file-o"></i> Config file</label>
         <input type="text" id="node-input-configPath" placeholder="optional; overrides settings above">
+    </div>
+    <hr>
+    <div class="form-row">
+        <label for="node-input-updateCheckEnabled" style="width:auto"><i class="fa fa-refresh"></i> Check for updates</label>
+        <input type="checkbox" id="node-input-updateCheckEnabled" style="width:auto; margin-left:6px">
+    </div>
+    <div class="form-row mqtt-broker-update-only">
+        <label for="node-input-updateCheckInterval"><i class="fa fa-clock-o"></i> Interval (min)</label>
+        <input type="number" id="node-input-updateCheckInterval" min="1" placeholder="15" style="width:120px">
     </div>
     <div class="form-row">
         <label for="node-input-logToConsole" style="width:auto"><i class="fa fa-file-text-o"></i> Log to Node-RED console</label>
@@ -83,40 +123,65 @@
     <p>Starts and supervises a <a href="https://mosquitto.org/">Mosquitto</a>
        MQTT broker as a child process of Node-RED.</p>
 
-    <h3>Prerequisites</h3>
-    <p>The module ships with a post-install script that installs
-       <code>mosquitto</code> automatically:</p>
+    <h3>Install scope</h3>
     <ul>
-        <li><b>Linux</b>: via apt, dnf, yum, zypper, pacman or apk. Needs
-            root or passwordless <code>sudo</code>.</li>
-        <li><b>macOS</b>: via Homebrew.</li>
-        <li><b>Windows</b>: via <code>winget</code>
-            (<code>EclipseFoundation.Mosquitto</code>), then Chocolatey,
-            then a direct silent download of the official installer from
-            <code>mosquitto.org</code>. The Windows installer requires
-            administrator rights - run <code>npm install</code> in an
-            elevated shell or accept the UAC prompt.</li>
+        <li><b>Auto</b>: if any mosquitto binary is already on the machine
+            it is reused (no duplicate install). Otherwise the system-wide
+            package manager is used.</li>
+        <li><b>Global</b>: forces the system-wide install path (apt/dnf/yum
+            /zypper/pacman/apk on Linux, Homebrew on macOS,
+            winget/choco/direct download on Windows). Skipped if a global
+            install is already present.</li>
+        <li><b>Local</b>: installs into this module's
+            <code>vendor/&lt;platform&gt;-&lt;arch&gt;/</code> directory.
+            <ul>
+                <li>Linux (Debian/Ubuntu): uses <code>apt-get download</code>
+                    + <code>dpkg-deb -x</code>, no root required.</li>
+                <li>Windows: runs the NSIS installer with
+                    <code>/D=&lt;vendor dir&gt;</code>.</li>
+                <li>macOS: not supported - falls back to a warning.</li>
+            </ul>
+            If a global install also exists the node logs a note but will
+            use the local copy.</li>
     </ul>
-    <p>You can rerun it any time from the module directory:
-       <code>npm run install-mosquitto</code>. To suppress it during
+
+    <h3>Update check</h3>
+    <p>When enabled, the node queries the official Mosquitto release feed
+       shortly after startup and then every <i>N</i> minutes (default 15,
+       configurable). If a newer version is available, a message is emitted
+       on <code>mosquitto/update</code>. Send
+       <code>payload: "update"</code> to install it (the broker is stopped,
+       the new version is installed at the configured scope, then the broker
+       is started again). Send <code>payload: "check-update"</code> to force
+       an immediate check.</p>
+
+    <h3>Persistence path</h3>
+    <p>When <b>Persistence</b> is on, Mosquitto's
+       <code>persistence_location</code> defaults to a temp directory that
+       is cleared when Node-RED stops. Fill in <b>Persistence path</b> to
+       point at a location you control (e.g. <code>/var/lib/mosquitto/</code>
+       or <code>C:\\ProgramData\\mosquitto\\</code>) - the directory is
+       created if missing.</p>
+
+    <h3>Prerequisites</h3>
+    <p>A post-install script installs <code>mosquitto</code> automatically
+       at the configured scope. To suppress it during
        <code>npm install</code>, set
        <code>SKIP_MOSQUITTO_INSTALL=1</code>. To pin the Windows fallback
        installer version, set <code>MOSQUITTO_WIN_VERSION=2.0.20</code>.</p>
 
     <h3>Self-heal on first deploy</h3>
     <p>If the binary is missing when the node first starts, the runtime
-       runs the installer once and only then spawns the broker. On
-       Windows the installer can surface a UAC prompt that
-       <code>npm install</code> couldn't show during palette install -
-       accept it and the node moves to <code>running</code>.</p>
+       runs the installer once and only then spawns the broker.</p>
 
     <h3>Inputs</h3>
     <dl class="message-properties">
         <dt>payload <span class="property-type">string | object</span></dt>
         <dd>Control command: <code>start</code>, <code>stop</code>,
             <code>restart</code>, <code>status</code>, <code>install</code>,
+            <code>check-update</code>, <code>update</code>,
             <code>topics</code>, or <code>get</code>. Object form:
-            <code>{ command: 'restart' }</code>.</dd>
+            <code>{ command: 'install', scope: 'local' }</code>.</dd>
         <dt class="optional">topic <span class="property-type">string</span></dt>
         <dd>For <code>get</code>: the topic name to fetch. Also accepted
             as <code>payload.topic</code>.</dd>
@@ -125,28 +190,21 @@
     <h3>Topic inspection</h3>
     <p>The node maintains an in-memory map of every topic it has seen
        since the broker started, together with the last payload, QoS,
-       retain flag, and timestamp. This uses an internal MQTT client
-       that subscribes to <code>#</code>. Memory grows with the number
-       of distinct topics.</p>
-    <ul>
-        <li><code>payload: "topics"</code> -> list of all topic names,
-            sorted.</li>
-        <li><code>payload: { "command": "get", "topic": "foo/bar" } </code>
-            or <code>payload: "get"</code> with
-            <code>msg.topic = "foo/bar"</code> -> last value for that
-            topic (as both decoded string and raw Buffer).</li>
-    </ul>
+       retain flag, and timestamp.</p>
 
     <h3>Outputs</h3>
     <dl class="message-properties">
         <dt>topic <span class="property-type">string</span></dt>
         <dd><code>mosquitto/stdout</code>, <code>mosquitto/stderr</code>,
             <code>mosquitto/status</code>, <code>mosquitto/install</code>,
-            <code>mosquitto/topics</code>, or <code>mosquitto/get</code>.</dd>
+            <code>mosquitto/update</code>, <code>mosquitto/topics</code>,
+            or <code>mosquitto/get</code>.</dd>
         <dt>payload <span class="property-type">string | object</span></dt>
-        <dd>Log lines, status object, topic list, or
-            <code>{ topic, found, value, buffer, qos, retain, timestamp }</code>
-            for <code>get</code>.</dd>
+        <dd>Log lines, status object (now includes <code>scope</code>,
+            <code>persistenceLocation</code>, <code>updateCheckEnabled</code>,
+            <code>updateCheckIntervalMin</code>, <code>lastUpdateInfo</code>),
+            update info (<code>{ installed, latest, updateAvailable }</code>),
+            topic list, or get-result.</dd>
     </dl>
 
     <h3>Details</h3>
