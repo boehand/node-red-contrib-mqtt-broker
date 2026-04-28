@@ -81,10 +81,10 @@ npm run install-mosquitto    # from the module directory
 | Bind | _(empty)_ | IP to bind; empty = all interfaces |
 | Allow anonymous | `true` | Allow clients without credentials |
 | Persistence | `false` | Turn on Mosquitto persistence |
-| Persistence path | _(empty)_ | `persistence_location` directory. Editable; empty = `<Node-RED userDir>/mqtt-broker-persistence/<node-id>/` (shown as placeholder in the editor) so data survives restarts |
+| Persistence path | auto-filled | `persistence_location` directory. When the dialog opens the field is pre-filled with `<Node-RED userDir>/mqtt-broker-persistence/<node-id>/` so you can copy it or overwrite it. Whatever is saved is used verbatim; empty the field to fall back to the default at runtime |
 | Username / Password | — | Optional; the password file is hashed via `mosquitto_passwd` |
 | Install scope | `auto` | `auto` / `global` / `local` — see below |
-| Mosquitto binary | _(empty)_ | Absolute path to the `mosquitto` executable. Leave empty to auto-locate via the install scope. Set only to pin a specific build; then the install scope / auto-installer is bypassed |
+| Mosquitto binary | auto-filled | Absolute path to the `mosquitto` executable. When the dialog opens the field is pre-filled with the path the node currently resolves for the selected install scope, so you can copy it or overwrite it with a different binary. Saved path = runtime path; empty the field to fall back to auto-lookup via the install scope on every start |
 | Config file | _(empty)_ | Custom `.conf`; overrides every field above |
 | Check for updates | `true` | Poll the Mosquitto release feed for a newer version |
 | Interval (min) | `15` | Update-check period in minutes |

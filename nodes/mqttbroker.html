@@ -51,18 +51,34 @@
             updateEnabled.on('change', toggleUpdate);
             toggleUpdate();
 
-            // Render the actual default persistence path (userDir-based) as
-            // placeholder text so users can see where data will land when
-            // they leave the field blank.
+            // Prefill the two path fields with the actual resolved values
+            // so users can copy them, replace them with their own path, or
+            // leave them alone. The stored config value is whatever is in
+            // the input at save time, so each prefilled path takes effect
+            // exactly as a hand-typed path would.
             const nodeId = this.id || '<node-id>';
-            $.getJSON('mqttbroker/defaults', (data) => {
-                if (data && data.persistenceBase) {
-                    const sep = data.platform === 'win32' ? '\\' : '/';
-                    const def = data.persistenceBase + sep + nodeId + sep;
-                    $('#node-input-persistenceLocation')
-                        .attr('placeholder', 'default: ' + def);
-                }
-            });
+            const scopeSelect = $('#node-input-installScope');
+            const persistenceInput = $('#node-input-persistenceLocation');
+            const binaryInput = $('#node-input-binaryPath');
+
+            const refreshDefaults = () => {
+                $.getJSON('mqttbroker/defaults?scope=' + encodeURIComponent(scopeSelect.val() || 'any'),
+                    (data) => {
+                        if (!data) return;
+                        const sep = data.pathSep || (data.platform === 'win32' ? '\\' : '/');
+                        if (data.persistenceBase && !persistenceInput.val()) {
+                            persistenceInput.val(data.persistenceBase + sep + nodeId + sep);
+                        }
+                        if (data.resolvedBinary && !binaryInput.val()) {
+                            binaryInput.val(data.resolvedBinary);
+                        }
+                    });
+            };
+            refreshDefaults();
+            // Re-resolve the binary when the user switches scope, but only
+            // overwrite the field when it is still empty - never clobber a
+            // path the user typed themselves.
+            scopeSelect.on('change', refreshDefaults);
         }
     });
 </script>
@@ -90,7 +106,8 @@
     </div>
     <div class="form-row mqtt-broker-generated-only mqtt-broker-persistence-only">
         <label for="node-input-persistenceLocation"><i class="fa fa-folder-open-o"></i> Persistence path</label>
-        <input type="text" id="node-input-persistenceLocation">
+        <input type="text" id="node-input-persistenceLocation"
+               placeholder="auto-filled with default; overwrite to point elsewhere">
     </div>
     <div class="form-row mqtt-broker-generated-only">
         <label for="node-input-username"><i class="fa fa-user"></i> Username</label>
@@ -112,7 +129,7 @@
     <div class="form-row">
         <label for="node-input-binaryPath"><i class="fa fa-terminal"></i> Mosquitto binary</label>
         <input type="text" id="node-input-binaryPath"
-               placeholder="optional path to mosquitto executable; empty = auto (via install scope)">
+               placeholder="auto-filled with resolved path; overwrite to pin a different binary">
     </div>
     <div class="form-row">
         <label for="node-input-configPath"><i class="fa fa-file-o"></i> Config file</label>
@@ -167,12 +184,20 @@
 
     <h3>Mosquitto binary</h3>
     <p>Absolute path to the <code>mosquitto</code> / <code>mosquitto.exe</code>
-       executable. <b>Leave empty</b> to let the node auto-locate it using
-       the selected <i>Install scope</i> - that is the recommended mode.
-       Set an explicit path only when you want to pin a specific build or
-       point to a binary outside the paths the node would search on its
-       own. When a binary path is set, the install scope and auto-installer
-       are bypassed.</p>
+       executable. When you open the node dialog the field is pre-filled
+       with the path the node currently resolves for the selected
+       <i>Install scope</i>, so you can copy it or replace it with your
+       own. What you save is what the runtime uses:</p>
+    <ul>
+        <li>Field filled (default or custom) &rarr; that exact binary is
+            used. The auto-installer is skipped.</li>
+        <li>Field emptied &rarr; the runtime auto-locates the binary via
+            the <i>Install scope</i> on every start (recommended when you
+            want updates via the install scope to take effect automatically).</li>
+    </ul>
+    <p>If you change the <i>Install scope</i> while the field is empty,
+       the auto-resolved path is refreshed; if the field already contains
+       a path it is left alone.</p>
 
     <h3>Update check</h3>
     <p>When enabled, the node queries the official Mosquitto release feed
@@ -185,14 +210,16 @@
        an immediate check.</p>
 
     <h3>Persistence path</h3>
-    <p>When <b>Persistence</b> is on, Mosquitto's
-       <code>persistence_location</code> defaults to
+    <p>When <b>Persistence</b> is on, the field is pre-filled with the
+       default path
        <code>&lt;Node-RED userDir&gt;/mqtt-broker-persistence/&lt;node-id&gt;/</code>
-       (the actual path is shown as a placeholder in the field) so the data
-       survives redeploys and Node-RED restarts. Fill in a path here to
-       override the default (e.g. <code>/var/lib/mosquitto/</code> or
-       <code>C:\\ProgramData\\mosquitto\\</code>). The directory is created
-       if missing.</p>
+       so it can be copied or replaced with your own path (e.g.
+       <code>/var/lib/mosquitto/</code> or
+       <code>C:\\ProgramData\\mosquitto\\</code>). Whatever is saved in the
+       field is what the runtime writes into Mosquitto's
+       <code>persistence_location</code>; the directory is created if it
+       does not exist. Empty the field to fall back to the default
+       lookup at runtime.</p>
 
     <h3>Log visibility</h3>
     <p>The two independent checkboxes at the bottom of the config control
