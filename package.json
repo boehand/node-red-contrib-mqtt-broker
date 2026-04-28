@@ -1,6 +1,6 @@
 {
   "name": "@stfi/node-red-contrib-mqtt-broker",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "boehand",
   "description": "Node-RED node that runs an MQTT broker (Mosquitto) as a child process, managed by the Node-RED runtime.",
   "keywords": [
