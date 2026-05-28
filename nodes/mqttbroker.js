@@ -338,7 +338,7 @@ module.exports = function (RED) {
                         // logger config.
                         process.stdout.write('[mosquitto] ' + text + '\n');
                     }
-                    node.send({ topic: 'mosquitto/stdout', payload: text });
+                    if (!stopping) node.send({ topic: 'mosquitto/stdout', payload: text });
                 });
 
                 child.stderr.on('data', (data) => {
@@ -347,7 +347,7 @@ module.exports = function (RED) {
                     if (text && logToTerminal) {
                         process.stderr.write('[mosquitto] ' + text + '\n');
                     }
-                    node.send({ topic: 'mosquitto/stderr', payload: text });
+                    if (!stopping) node.send({ topic: 'mosquitto/stderr', payload: text });
                 });
 
                 child.on('exit', (code, signal) => {
@@ -496,7 +496,10 @@ module.exports = function (RED) {
                 ? msg.payload.command
                 : msg.payload;
             if (cmd === 'start') {
-                start().then(() => doneCb && doneCb());
+                start().then(() => doneCb && doneCb()).catch((err) => {
+                    node.error('start failed: ' + err.message);
+                    doneCb && doneCb(err);
+                });
                 return;
             }
             if (cmd === 'stop') {
@@ -506,7 +509,10 @@ module.exports = function (RED) {
             if (cmd === 'restart') {
                 stop(() => {
                     stopping = false;
-                    start().then(() => doneCb && doneCb());
+                    start().then(() => doneCb && doneCb()).catch((err) => {
+                        node.error('restart failed: ' + err.message);
+                        doneCb && doneCb(err);
+                    });
                 });
                 return;
             }
@@ -537,15 +543,24 @@ module.exports = function (RED) {
                         alreadyInstalled: !!res.alreadyInstalled
                     } });
                     doneCb && doneCb();
+                }).catch((err) => {
+                    node.error('install failed: ' + err.message);
+                    doneCb && doneCb(err);
                 });
                 return;
             }
             if (cmd === 'check-update') {
-                runUpdateCheck(false).then(() => doneCb && doneCb());
+                runUpdateCheck(false).then(() => doneCb && doneCb()).catch((err) => {
+                    node.error('update check failed: ' + err.message);
+                    doneCb && doneCb(err);
+                });
                 return;
             }
             if (cmd === 'update') {
-                performUpdate(send).then(() => doneCb && doneCb());
+                performUpdate(send).then(() => doneCb && doneCb()).catch((err) => {
+                    node.error('update failed: ' + err.message);
+                    doneCb && doneCb(err);
+                });
                 return;
             }
             if (cmd === 'topics') {
@@ -588,7 +603,10 @@ module.exports = function (RED) {
             stop(done);
         });
 
-        start();
+        start().catch((err) => {
+            setStatus('red', 'ring', 'start failed');
+            node.error('Error starting broker: ' + err.message);
+        });
     }
 
     RED.nodes.registerType('mqttbroker', MosquittoBrokerNode, {
