@@ -79,6 +79,37 @@
             // overwrite the field when it is still empty - never clobber a
             // path the user typed themselves.
             scopeSelect.on('change', refreshDefaults);
+
+            // Show update banner if an update is already known for this node.
+            if (nodeId !== '<node-id>') {
+                $.getJSON('mqttbroker/' + nodeId + '/update-status', (info) => {
+                    if (!info || !info.updateAvailable) return;
+                    $('#mqtt-broker-update-versions').text(info.installed + ' → ' + info.latest);
+                    $('#mqtt-broker-update-banner').show();
+                });
+            }
+
+            $('#mqtt-broker-update-btn').on('click', function () {
+                const btn = $(this);
+                const result = $('#mqtt-broker-update-result');
+                btn.prop('disabled', true).text('Installing…');
+                result.text('').css('color', '');
+                $.ajax({
+                    url: 'mqttbroker/' + nodeId + '/do-update',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    success: function () {
+                        btn.text('Done ✓');
+                        result.text('Update installed. Broker is restarting.').css('color', 'green');
+                        $('#mqtt-broker-update-banner').delay(3000).fadeOut();
+                    },
+                    error: function (xhr) {
+                        btn.prop('disabled', false).text('Install now');
+                        const msg = (xhr.responseJSON && xhr.responseJSON.error) || xhr.statusText;
+                        result.text('Error: ' + msg).css('color', 'red');
+                    }
+                });
+            });
         }
     });
 </script>
@@ -144,6 +175,15 @@
         <label for="node-input-updateCheckInterval"><i class="fa fa-clock-o"></i> Interval (min)</label>
         <input type="number" id="node-input-updateCheckInterval" min="1" placeholder="15" style="width:120px">
     </div>
+    <div class="form-row mqtt-broker-update-only" id="mqtt-broker-update-banner" style="display:none">
+        <label style="width:auto"><i class="fa fa-arrow-circle-up" style="color:#e6a817"></i> Update available</label>
+        <span id="mqtt-broker-update-versions" style="margin-left:6px; font-family:monospace"></span>
+        <button type="button" id="mqtt-broker-update-btn"
+                style="margin-left:12px" class="red-ui-button red-ui-button-small">
+            Install now
+        </button>
+        <span id="mqtt-broker-update-result" style="margin-left:8px; font-size:0.9em"></span>
+    </div>
     <div class="form-row">
         <label for="node-input-logToConsole" style="width:auto"><i class="fa fa-file-text-o"></i> Show broker logs in Debug sidebar</label>
         <input type="checkbox" id="node-input-logToConsole" style="width:auto; margin-left:6px">
@@ -202,12 +242,21 @@
     <h3>Update check</h3>
     <p>When enabled, the node queries the official Mosquitto release feed
        shortly after startup and then every <i>N</i> minutes (default 15,
-       configurable). If a newer version is available, a message is emitted
-       on <code>mosquitto/update</code>. Send
-       <code>payload: "update"</code> to install it (the broker is stopped,
-       the new version is installed at the configured scope, then the broker
-       is started again). Send <code>payload: "check-update"</code> to force
-       an immediate check.</p>
+       configurable). When a newer version is found:</p>
+    <ul>
+        <li>The node status on the canvas turns <b>yellow</b> and shows
+            the version transition, e.g.
+            <code>update 2.0.18 → 2.0.19</code>.</li>
+        <li>An <b>Install now</b> button appears inside the node's config
+            dialog — click it to install the update without touching any
+            flow.</li>
+        <li>A message is emitted on <code>mosquitto/update</code>.</li>
+        <li>You can also send <code>payload: "update"</code> to trigger the
+            install from a flow.</li>
+    </ul>
+    <p>During the install the broker is stopped, the new binary is fetched
+       at the configured scope, and then the broker is restarted. Send
+       <code>payload: "check-update"</code> to force an immediate check.</p>
 
     <h3>Persistence path</h3>
     <p>When <b>Persistence</b> is on, the field is pre-filled with the
