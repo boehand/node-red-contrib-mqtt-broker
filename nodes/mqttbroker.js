@@ -42,6 +42,27 @@ module.exports = function (RED) {
             });
         });
 
+    // Returns the cached update-check result for a given node so the editor
+    // can show it in the config dialog without a fresh network request.
+    RED.httpAdmin.get('/mqttbroker/:id/update-status',
+        RED.auth.needsPermission('mqttbroker.read'),
+        (req, res) => {
+            const n = RED.nodes.getNode(req.params.id);
+            if (!n) return res.sendStatus(404);
+            res.json(n._lastUpdateInfo || {});
+        });
+
+    // Triggers an update on a running broker node from the editor UI.
+    RED.httpAdmin.post('/mqttbroker/:id/do-update',
+        RED.auth.needsPermission('mqttbroker.write'),
+        (req, res) => {
+            const n = RED.nodes.getNode(req.params.id);
+            if (!n || typeof n._triggerUpdate !== 'function') return res.sendStatus(404);
+            n._triggerUpdate()
+                .then(() => res.json({ ok: true }))
+                .catch(err => res.status(500).json({ error: err.message }));
+        });
+
     function portInUse(port, host) {
         return new Promise((resolve) => {
             const tester = net.createServer()
@@ -93,6 +114,10 @@ module.exports = function (RED) {
         let initialUpdateTimer = null;
         let lastUpdateInfo = null;
         const topics = new Map();
+
+        // Exposed for the admin HTTP routes registered above.
+        node._lastUpdateInfo = null;
+        node._triggerUpdate = () => performUpdate((msg) => node.send(msg));
 
         function bufferToView(buf) {
             let string = null;
@@ -211,6 +236,19 @@ module.exports = function (RED) {
 
         function setStatus(fill, shape, text) {
             node.status({ fill, shape, text });
+        }
+
+        // Re-evaluates the "normal running" status, taking a pending update
+        // into account.  Call this instead of setStatus('green',...) so the
+        // update hint is always visible when the broker is healthy.
+        function refreshStatus() {
+            if (!child || stopping) return;
+            if (lastUpdateInfo && lastUpdateInfo.updateAvailable) {
+                node.status({ fill: 'yellow', shape: 'dot',
+                    text: `update ${lastUpdateInfo.installed} → ${lastUpdateInfo.latest}` });
+            } else {
+                node.status({ fill: 'green', shape: 'dot', text: `running :${port}` });
+            }
         }
 
         async function ensureBinaryAvailable(opts) {
@@ -370,7 +408,7 @@ module.exports = function (RED) {
 
                 setTimeout(() => {
                     if (child) {
-                        setStatus('green', 'dot', `running :${port}`);
+                        refreshStatus();
                         connectInternalClient();
                     }
                 }, 500);
@@ -420,12 +458,14 @@ module.exports = function (RED) {
             try {
                 const info = await installLib.checkForUpdate(binaryPath);
                 lastUpdateInfo = Object.assign({ checkedAt: Date.now() }, info);
+                node._lastUpdateInfo = lastUpdateInfo;
                 if (!silent || info.updateAvailable) {
-                    node.send({ topic: 'mosquitto/update', payload: lastUpdateInfo });
+                    if (!stopping) node.send({ topic: 'mosquitto/update', payload: lastUpdateInfo });
                 }
                 if (info.updateAvailable) {
                     node.log(`mosquitto update available: ${info.installed} -> ${info.latest}. ` +
                         'Send {"payload":"update"} to install.');
+                    refreshStatus();
                 }
                 return lastUpdateInfo;
             } catch (err) {
