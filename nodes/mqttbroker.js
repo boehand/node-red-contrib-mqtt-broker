@@ -499,8 +499,15 @@ module.exports = function (RED) {
         }
 
         async function performUpdate(send) {
+            const BAR = 8;
+            const bar = (step, total) => {
+                const filled = Math.round(BAR * step / total);
+                return '█'.repeat(filled) + '░'.repeat(BAR - filled);
+            };
+
             // Re-check before installing so we don't force-reinstall when
             // the node's cached view is stale.
+            setStatus('yellow', 'ring', bar(1, 4) + ' checking…');
             const info = await runUpdateCheck(true);
             if (!info || !info.updateAvailable) {
                 send({ topic: 'mosquitto/update', payload: Object.assign(
@@ -508,13 +515,16 @@ module.exports = function (RED) {
                       updateAvailable: false, updated: false,
                       message: 'no update available' })
                 });
+                refreshStatus();
                 return;
             }
             const wasRunning = !!child;
             if (wasRunning) {
+                setStatus('yellow', 'ring', bar(2, 4) + ' stopping…');
                 await new Promise((resolve) => stop(resolve));
                 stopping = false;
             }
+            setStatus('yellow', 'ring', bar(3, 4) + ' installing…');
             const res = await ensureBinaryAvailable({ force: true, scope: installScope });
             const newVersion = res.ok ? installLib.getInstalledVersion(binaryPath) : null;
             send({ topic: 'mosquitto/update', payload: {
@@ -527,7 +537,10 @@ module.exports = function (RED) {
                 path: res.path
             } });
             if (wasRunning) {
+                setStatus('yellow', 'ring', bar(4, 4) + ' restarting…');
                 await start();
+            } else {
+                refreshStatus();
             }
         }
 
