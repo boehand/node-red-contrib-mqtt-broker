@@ -35,6 +35,11 @@ macOS, and Windows 10/11.
 - Emits broker logs as Node-RED messages (`mosquitto/stdout`,
   `mosquitto/stderr`).
 - **Auto-restart** on unexpected exit (5 s backoff).
+- **Multiple brokers**: run as many broker nodes as you like in the same
+  Node-RED instance — each on its own port, fully independent.
+- **Node-RED crash-safe**: all asynchronous operations are fully guarded so
+  that an unexpected broker exit or a failed command can never propagate an
+  unhandled rejection and terminate the Node-RED process.
 
 ---
 
@@ -180,6 +185,21 @@ publishes/subscribes with `mosquitto_pub`/`mosquitto_sub`, exercises
 
 ---
 
+## Running multiple brokers
+
+Each `mqttbroker` node runs its own Mosquitto child process — you can place
+as many nodes as you like in the same flow, each on a different port:
+
+1. Drag a second `mqttbroker` node into the canvas.
+2. Open its config and set **Port** to a free port (e.g. `1884`).
+3. Deploy — both brokers start independently.
+
+The nodes share no state. Each can be started, stopped, or restarted
+individually via input commands, and each recovers from its own crashes
+without affecting the others or Node-RED itself.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause & fix |
@@ -188,6 +208,7 @@ publishes/subscribes with `mosquitto_pub`/`mosquitto_sub`, exercises
 | Status **red**, "port 1883 in use" | Another broker is already running (often the system service). Change the port, or stop the service (`sudo systemctl stop mosquitto`). |
 | `topics` stays empty | The internal tracking client needs a moment to connect. Publish first, then query after ~1 s. |
 | Auth test fails | `mosquitto_passwd` is missing, so the password file was not hashed. Install the `mosquitto-clients` package. |
+| Node-RED log shows "start failed" / "restart failed" | The broker command threw an error (e.g. config file missing). Check the full error in the Node-RED log; the error is caught so Node-RED keeps running. |
 
 ---
 
