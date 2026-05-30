@@ -22,7 +22,8 @@
             password: { type: 'password' }
         },
         inputs: 1,
-        outputs: 1,
+        outputs: 3,
+        outputLabels: ['Data (status / topics / get / update)', 'Server logs (stdout / stderr)', 'Admin alerts (crash / update / errors)'],
         icon: 'bridge.svg',
         label: function () {
             return this.name || ('mqtt :' + (this.port || 1883));
@@ -320,18 +321,36 @@
        retain flag, and timestamp.</p>
 
     <h3>Outputs</h3>
+    <p>The node has <b>three separate outputs</b> so each concern can be wired
+       independently (e.g. output 3 directly into an email node).</p>
     <dl class="message-properties">
-        <dt>topic <span class="property-type">string</span></dt>
-        <dd><code>mosquitto/stdout</code>, <code>mosquitto/stderr</code>,
+        <dt>Output 1 — Data <span class="property-type">object</span></dt>
+        <dd>Responses to input commands.
+            <code>topic</code> is one of
             <code>mosquitto/status</code>, <code>mosquitto/install</code>,
             <code>mosquitto/update</code>, <code>mosquitto/topics</code>,
-            or <code>mosquitto/get</code>.</dd>
-        <dt>payload <span class="property-type">string | object</span></dt>
-        <dd>Log lines, status object (now includes <code>scope</code>,
-            <code>persistenceLocation</code>, <code>updateCheckEnabled</code>,
-            <code>updateCheckIntervalMin</code>, <code>lastUpdateInfo</code>),
-            update info (<code>{ installed, latest, updateAvailable }</code>),
-            topic list, or get-result.</dd>
+            <code>mosquitto/get</code>.</dd>
+        <dt>Output 2 — Server logs <span class="property-type">string</span></dt>
+        <dd>Every stdout and stderr line from the Mosquitto process.
+            <code>topic</code> is <code>mosquitto/stdout</code> or
+            <code>mosquitto/stderr</code>;
+            <code>payload</code> is the raw log line.</dd>
+        <dt>Output 3 — Admin alerts <span class="property-type">object</span></dt>
+        <dd>Important events worth emailing to an administrator.
+            <code>topic</code> is always <code>mosquitto/alert</code>.
+            <code>payload</code>:
+            <ul>
+                <li><code>event</code> — one of
+                    <code>crash</code>, <code>spawn-error</code>,
+                    <code>port-in-use</code>, <code>start-failed</code>,
+                    <code>install-failed</code>, <code>update-available</code>,
+                    <code>update-install-failed</code></li>
+                <li><code>level</code> — <code>"info"</code> or <code>"error"</code></li>
+                <li><code>message</code> — human-readable description</li>
+                <li><code>details</code> — event-specific object (port, version, binary path, …)</li>
+                <li><code>timestamp</code> — Unix ms</li>
+            </ul>
+        </dd>
     </dl>
 
     <h3>Details</h3>
