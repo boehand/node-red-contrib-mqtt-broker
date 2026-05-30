@@ -272,10 +272,46 @@ module.exports = function (RED) {
         }
 
         function sendAlert(event, level, message, details) {
+            const d = details || {};
+            const icon = level === 'error' ? '🔴' : 'ℹ️';
+            const ts = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+            const title = {
+                'crash':                'Broker crashed',
+                'spawn-error':         'Broker failed to start',
+                'port-in-use':         'Port already in use',
+                'start-failed':        'Broker start failed',
+                'install-failed':      'Auto-install failed',
+                'update-available':    'Update available',
+                'update-install-failed': 'Update installation failed'
+            }[event] || event;
+
+            // Build a details table from whatever keys are present
+            const rows = Object.entries(d)
+                .filter(([, v]) => v !== undefined && v !== null)
+                .map(([k, v]) => `| ${k} | ${v} |`)
+                .join('\n');
+            const detailsTable = rows
+                ? `\n## Details\n\n| Field | Value |\n|---|---|\n${rows}\n`
+                : '';
+
+            const markdown = [
+                `# ${icon} MQTT Broker — ${title}`,
+                '',
+                `**Time:** ${ts}`,
+                '',
+                message,
+                detailsTable,
+                '---',
+                '*This alert was sent automatically by node-red-contrib-mqtt-broker.*'
+            ].join('\n');
+
             const out = [null, null, null];
             out[OUT_ALERT] = {
                 topic: 'mosquitto/alert',
-                payload: { event, level, message, details: details || {}, timestamp: Date.now() }
+                // payload is Markdown — pipe directly into node-red-node-markdown
+                payload: markdown,
+                // structured data remains available for further processing
+                alert: { event, level, message, details: d, timestamp: Date.now() }
             };
             node.send(out);
         }

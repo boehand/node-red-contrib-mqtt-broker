@@ -184,10 +184,17 @@ notifications.
 | `details` | object | Event-specific data (port, versions, binary path, exit code, …) |
 | `timestamp` | number | Unix timestamp in ms |
 
-**Example email flow:**
+**`msg.payload`** is a ready-to-render **Markdown string**.  
+**`msg.alert`** holds the structured data `{ event, level, message, details, timestamp }` for further processing.
+
+**Email flow (no extra function node needed):**
 ```
-[mqttbroker] output 3 → [function: msg.topic = msg.payload.message] → [email]
+[mqttbroker] output 3
+  → [node-red-node-markdown]   converts msg.payload (Markdown) to HTML
+  → [node-red-node-email]      sends as HTML email
 ```
+
+Example rendered subject: `🔴 MQTT Broker — Broker crashed`
 
 ---
 
