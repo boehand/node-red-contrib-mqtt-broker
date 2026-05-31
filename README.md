@@ -138,23 +138,63 @@ msg.payload = "get";
 
 ## Output messages
 
+The node has **three outputs** wired independently in the flow editor:
+
+### Output 1 — Data (command responses)
+
 | `msg.topic` | `msg.payload` |
 |---|---|
-| `mosquitto/stdout` | stdout line from the broker |
-| `mosquitto/stderr` | stderr line |
 | `mosquitto/status` | `{ running, port, bind, binary, scope, persistence, persistenceLocation, updateCheckEnabled, updateCheckIntervalMin, lastUpdateInfo }` |
 | `mosquitto/install` | `{ ok, binary, scope, alreadyInstalled }` |
 | `mosquitto/update` | `{ installed, latest, updateAvailable, updated?, scope?, path?, checkedAt }` |
 | `mosquitto/topics` | `string[]` — topic names, sorted |
 | `mosquitto/get` | `{ topic, found, value, buffer, qos, retain, timestamp }` |
 
-`value` is the UTF-8 decoded payload; `buffer` is the raw `Buffer` (for binary
-payloads).
+`value` is the UTF-8 decoded payload; `buffer` is the raw `Buffer` (for binary payloads).
 
 **MQTT note on the `retain` flag:** `retain=true` is only set on messages
 delivered to a fresh subscriber (historical delivery). Live messages always
 arrive with `retain=false`, even when published with `-r` — that's standard
 MQTT behaviour, not a bug in this node.
+
+### Output 2 — Server logs
+
+Every line written to stdout or stderr by the Mosquitto process.
+
+| `msg.topic` | `msg.payload` |
+|---|---|
+| `mosquitto/stdout` | stdout line from the broker |
+| `mosquitto/stderr` | stderr line |
+
+Wire this output into a file node, a dashboard text field, or any log sink.
+
+### Output 3 — Admin alerts
+
+Important events that an administrator should be notified about. Wire
+directly into an email node (e.g. `node-red-node-email`) for automated
+notifications.
+
+`msg.topic` is always `mosquitto/alert`. `msg.payload`:
+
+| field | type | description |
+|---|---|---|
+| `event` | string | `crash`, `spawn-error`, `port-in-use`, `start-failed`, `install-failed`, `update-available`, `update-install-failed` |
+| `level` | string | `"info"` or `"error"` |
+| `message` | string | Human-readable description ready to use as email body |
+| `details` | object | Event-specific data (port, versions, binary path, exit code, …) |
+| `timestamp` | number | Unix timestamp in ms |
+
+**`msg.payload`** is a ready-to-render **Markdown string**.  
+**`msg.alert`** holds the structured data `{ event, level, message, details, timestamp }` for further processing.
+
+**Email flow (no extra function node needed):**
+```
+[mqttbroker] output 3
+  → [node-red-node-markdown]   converts msg.payload (Markdown) to HTML
+  → [node-red-node-email]      sends as HTML email
+```
+
+Example rendered subject: `🔴 MQTT Broker — Broker crashed`
 
 ---
 

@@ -117,7 +117,7 @@ module.exports = function (RED) {
 
         // Exposed for the admin HTTP routes registered above.
         node._lastUpdateInfo = null;
-        node._triggerUpdate = () => performUpdate((msg) => node.send(msg));
+        node._triggerUpdate = () => performUpdate();
 
         function bufferToView(buf) {
             let string = null;
@@ -251,6 +251,71 @@ module.exports = function (RED) {
             }
         }
 
+        // Output indices — kept as constants so any future re-ordering is a
+        // one-line change.
+        const OUT_DATA  = 0;   // command responses (status, topics, get, update, install)
+        const OUT_LOGS  = 1;   // raw mosquitto stdout / stderr
+        const OUT_ALERT = 2;   // admin notifications worth emailing
+
+        function sendData(msg) {
+            if (stopping) return;
+            const out = [null, null, null];
+            out[OUT_DATA] = msg;
+            node.send(out);
+        }
+
+        function sendLog(msg) {
+            if (stopping) return;
+            const out = [null, null, null];
+            out[OUT_LOGS] = msg;
+            node.send(out);
+        }
+
+        function sendAlert(event, level, message, details) {
+            const d = details || {};
+            const icon = level === 'error' ? '🔴' : 'ℹ️';
+            const ts = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+            const title = {
+                'crash':                'Broker crashed',
+                'spawn-error':         'Broker failed to start',
+                'port-in-use':         'Port already in use',
+                'start-failed':        'Broker start failed',
+                'install-failed':      'Auto-install failed',
+                'update-available':    'Update available',
+                'update-install-failed': 'Update installation failed'
+            }[event] || event;
+
+            // Build a details table from whatever keys are present
+            const rows = Object.entries(d)
+                .filter(([, v]) => v !== undefined && v !== null)
+                .map(([k, v]) => `| ${k} | ${v} |`)
+                .join('\n');
+            const detailsTable = rows
+                ? `\n## Details\n\n| Field | Value |\n|---|---|\n${rows}\n`
+                : '';
+
+            const markdown = [
+                `# ${icon} MQTT Broker — ${title}`,
+                '',
+                `**Time:** ${ts}`,
+                '',
+                message,
+                detailsTable,
+                '---',
+                '*This alert was sent automatically by node-red-contrib-mqtt-broker.*'
+            ].join('\n');
+
+            const out = [null, null, null];
+            out[OUT_ALERT] = {
+                topic: 'mosquitto/alert',
+                // payload is Markdown — pipe directly into node-red-node-markdown
+                payload: markdown,
+                // structured data remains available for further processing
+                alert: { event, level, message, details: d, timestamp: Date.now() }
+            };
+            node.send(out);
+        }
+
         async function ensureBinaryAvailable(opts) {
             opts = opts || {};
             const scope = opts.scope || installScope;
@@ -292,6 +357,9 @@ module.exports = function (RED) {
             setStatus('red', 'ring', 'install failed');
             node.error('Auto-install of mosquitto failed. Send {"payload":"install"} ' +
                 'to the node to retry, or install mosquitto manually and redeploy.');
+            sendAlert('install-failed', 'error',
+                'Auto-install of mosquitto failed — broker cannot start.',
+                { scope: res.scope });
             return res;
         }
 
@@ -306,6 +374,9 @@ module.exports = function (RED) {
                 if (inUse) {
                     setStatus('red', 'ring', `port ${port} in use`);
                     node.error(`Port ${port} is already in use`);
+                    sendAlert('port-in-use', 'error',
+                        `Port ${port} is already in use — broker did not start.`,
+                        { port, bind: bind || '0.0.0.0' });
                     return;
                 }
 
@@ -357,6 +428,9 @@ module.exports = function (RED) {
                         ? ' - binary not found. Run "npm run install-mosquitto" in the module directory, or install mosquitto manually.'
                         : '';
                     node.error(`Failed to start mosquitto (${binaryPath}): ${err.message}${hint}`);
+                    sendAlert('spawn-error', 'error',
+                        `Failed to start mosquitto: ${err.message}${hint}`,
+                        { binary: binaryPath, errorCode: err.code });
                     child = null;
                 });
 
@@ -376,7 +450,7 @@ module.exports = function (RED) {
                         // logger config.
                         process.stdout.write('[mosquitto] ' + text + '\n');
                     }
-                    if (!stopping) node.send({ topic: 'mosquitto/stdout', payload: text });
+                    if (!stopping) sendLog({ topic: 'mosquitto/stdout', payload: text });
                 });
 
                 child.stderr.on('data', (data) => {
@@ -385,7 +459,7 @@ module.exports = function (RED) {
                     if (text && logToTerminal) {
                         process.stderr.write('[mosquitto] ' + text + '\n');
                     }
-                    if (!stopping) node.send({ topic: 'mosquitto/stderr', payload: text });
+                    if (!stopping) sendLog({ topic: 'mosquitto/stderr', payload: text });
                 });
 
                 child.on('exit', (code, signal) => {
@@ -398,6 +472,9 @@ module.exports = function (RED) {
                     const reason = signal ? `signal ${signal}` : `code ${code}`;
                     setStatus('red', 'ring', `exited (${reason})`);
                     node.warn(`mosquitto exited unexpectedly (${reason}); retrying in 5s`);
+                    sendAlert('crash', 'error',
+                        `Mosquitto on port ${port} exited unexpectedly (${reason}); restarting in 5 s.`,
+                        { port, exitCode: code, signal, willRestart: wasRunning });
                     if (wasRunning && !restartTimer) {
                         restartTimer = setTimeout(() => {
                             restartTimer = null;
@@ -417,6 +494,9 @@ module.exports = function (RED) {
             } catch (err) {
                 setStatus('red', 'ring', 'start failed');
                 node.error('Error starting broker: ' + err.message);
+                sendAlert('start-failed', 'error',
+                    `Broker on port ${port} failed to start: ${err.message}`,
+                    { port, error: err.message });
             }
         }
 
@@ -460,11 +540,14 @@ module.exports = function (RED) {
                 lastUpdateInfo = Object.assign({ checkedAt: Date.now() }, info);
                 node._lastUpdateInfo = lastUpdateInfo;
                 if (!silent || info.updateAvailable) {
-                    if (!stopping) node.send({ topic: 'mosquitto/update', payload: lastUpdateInfo });
+                    sendData({ topic: 'mosquitto/update', payload: lastUpdateInfo });
                 }
                 if (info.updateAvailable) {
                     node.log(`mosquitto update available: ${info.installed} -> ${info.latest}. ` +
                         'Send {"payload":"update"} to install.');
+                    sendAlert('update-available', 'info',
+                        `Mosquitto update available: ${info.installed} → ${info.latest}`,
+                        { installed: info.installed, latest: info.latest });
                     refreshStatus();
                 }
                 return lastUpdateInfo;
@@ -498,7 +581,7 @@ module.exports = function (RED) {
             }
         }
 
-        async function performUpdate(send) {
+        async function performUpdate() {
             const BAR = 8;
             const bar = (step, total) => {
                 const filled = Math.round(BAR * step / total);
@@ -510,7 +593,7 @@ module.exports = function (RED) {
             setStatus('yellow', 'ring', bar(1, 4) + ' checking…');
             const info = await runUpdateCheck(true);
             if (!info || !info.updateAvailable) {
-                send({ topic: 'mosquitto/update', payload: Object.assign(
+                sendData({ topic: 'mosquitto/update', payload: Object.assign(
                     { installed: info && info.installed, latest: info && info.latest,
                       updateAvailable: false, updated: false,
                       message: 'no update available' })
@@ -527,7 +610,12 @@ module.exports = function (RED) {
             setStatus('yellow', 'ring', bar(3, 4) + ' installing…');
             const res = await ensureBinaryAvailable({ force: true, scope: installScope });
             const newVersion = res.ok ? installLib.getInstalledVersion(binaryPath) : null;
-            send({ topic: 'mosquitto/update', payload: {
+            if (!res.ok) {
+                sendAlert('update-install-failed', 'error',
+                    `Mosquitto update installation failed (${info.installed} → ${info.latest}).`,
+                    { installed: info.installed, latest: info.latest, scope: res.scope });
+            }
+            sendData({ topic: 'mosquitto/update', payload: {
                 installed: newVersion,
                 latest: info.latest,
                 updateAvailable: !!(newVersion && info.latest &&
@@ -570,7 +658,7 @@ module.exports = function (RED) {
                 return;
             }
             if (cmd === 'status') {
-                send({ topic: 'mosquitto/status', payload: {
+                send([{ topic: 'mosquitto/status', payload: {
                     running: !!child,
                     port,
                     bind,
@@ -581,7 +669,7 @@ module.exports = function (RED) {
                     updateCheckEnabled,
                     updateCheckIntervalMin,
                     lastUpdateInfo
-                } });
+                } }, null, null]);
                 doneCb && doneCb();
                 return;
             }
@@ -589,12 +677,12 @@ module.exports = function (RED) {
                 const scopeArg = (msg.payload && typeof msg.payload === 'object'
                     && msg.payload.scope) || installScope;
                 ensureBinaryAvailable({ scope: scopeArg }).then((res) => {
-                    send({ topic: 'mosquitto/install', payload: {
+                    send([{ topic: 'mosquitto/install', payload: {
                         ok: !!res.ok,
                         binary: res.ok ? binaryPath : null,
                         scope: res.scope,
                         alreadyInstalled: !!res.alreadyInstalled
-                    } });
+                    } }, null, null]);
                     doneCb && doneCb();
                 }).catch((err) => {
                     node.error('install failed: ' + err.message);
@@ -610,14 +698,14 @@ module.exports = function (RED) {
                 return;
             }
             if (cmd === 'update') {
-                performUpdate(send).then(() => doneCb && doneCb()).catch((err) => {
+                performUpdate().then(() => doneCb && doneCb()).catch((err) => {
                     node.error('update failed: ' + err.message);
                     doneCb && doneCb(err);
                 });
                 return;
             }
             if (cmd === 'topics') {
-                send({ topic: 'mosquitto/topics', payload: Array.from(topics.keys()).sort() });
+                send([{ topic: 'mosquitto/topics', payload: Array.from(topics.keys()).sort() }, null, null]);
                 doneCb && doneCb();
                 return;
             }
@@ -627,16 +715,16 @@ module.exports = function (RED) {
                     || '';
                 if (!wanted) {
                     node.warn('get command needs a topic (msg.payload.topic or msg.topic)');
-                    send({ topic: 'mosquitto/get', payload: { topic: null, found: false } });
+                    send([{ topic: 'mosquitto/get', payload: { topic: null, found: false } }, null, null]);
                     doneCb && doneCb();
                     return;
                 }
                 const entry = topics.get(wanted);
                 if (!entry) {
-                    send({ topic: 'mosquitto/get', payload: { topic: wanted, found: false } });
+                    send([{ topic: 'mosquitto/get', payload: { topic: wanted, found: false } }, null, null]);
                 } else {
                     const view = bufferToView(entry.payload);
-                    send({ topic: 'mosquitto/get', payload: {
+                    send([{ topic: 'mosquitto/get', payload: {
                         topic: wanted,
                         found: true,
                         value: view.string,
@@ -644,7 +732,7 @@ module.exports = function (RED) {
                         qos: entry.qos,
                         retain: entry.retain,
                         timestamp: entry.timestamp
-                    } });
+                    } }, null, null]);
                 }
                 doneCb && doneCb();
                 return;
